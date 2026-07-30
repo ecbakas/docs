@@ -16,6 +16,13 @@
 | R2   | Refund Point | Sticker QR  | When the refund point scans the sticker QR, they see the details of the linked tag if one exists and can assign a traveller on this screen. If it is not linked to a tag, a tag is created and the link is established. |
 | R3   | Refund Point | Tag QR      | When the refund point scans the tag QR, they see the details of the relevant tag and can assign a traveller.                                                                                                            |
 
+Apps and their purposes
+Mobile/Core = Its works like template other apps created from this repository there are no role guard etc..
+Mobile/App = Its for mobile phones and tablets and can be used by travelers, refund points and merchants.
+Mobile/Pos = Its for pos devices and only used by merchants
+Unirefund Web/SSR = Its web application and can be used by travelers
+Unirefund Web/Web = Its web application and can be used by admins, refund points, merchants and any other party type except travelers.
+
 ---
 
 # QR capability catalogue
@@ -45,7 +52,7 @@ The three apps do not resolve a QR the same way, which is why some capabilities 
 | 5   | Airport self-validation (location → flight → scan → results) | ✅         | ✅       |
 | 6   | Boarding-pass BCBP barcode scan                              | ✅         | ✅       |
 | 7   | Rescan when the validate QR expires mid-flow                 | ✅         | ✅       |
-| 8   | Claim further tags from the validation results view          | ❌         | ✅       |
+| 8   | Claim further tags from the validation results view          | ✅         | ✅       |
 | 9   | Manual tag lookup when the QR will not scan                  | ✅         | ✅       |
 
 ## B. Staff — `mobile/app` vs `unirefund-web/apps/web`
@@ -54,8 +61,8 @@ The three apps do not resolve a QR the same way, which is why some capabilities 
 | --- | -------------------------------------------------------------- | ---------- | ------------------------------ |
 | 10  | Sticker → create a tag                                         | ✅         | ✅                             |
 | 11  | Refund-point merchant picker, with the allocation warning      | ✅         | ✅                             |
-| 12  | Attach a traveller at creation (status `Issued`)               | ✅         | ❌                             |
-| 13  | Capture the traveller's signature                              | ✅         | ❌                             |
+| 12  | Attach a traveller at creation (status `Issued`)               | ✅         | ✅                             |
+| 13  | Capture the traveller's signature                              | ✅         | ✅                             |
 | 14  | A used sticker opens its tag instead of a create form          | ✅         | ✅                             |
 | 15  | Merchant staff resolve the merchant without `ViewMerchantInfo` | ✅         | ✅                             |
 | 16  | Tag QR → assign a traveller (one tag)                          | ✅         | ✅                             |
@@ -93,11 +100,11 @@ Track each pair under the **lower** number. #26 and #27 are retired as aliases.
 
 ### Do
 
-| #   | What                                                | Where                    |
-| --- | --------------------------------------------------- | ------------------------ |
-| 8   | Claim further tags from the validation results view | `mobile/app`             |
-| 12  | Attach a traveller at creation                      | `unirefund-web/apps/web` |
-| 13  | Capture the traveller's signature                   | `unirefund-web/apps/web` |
+Every catalogued gap is either delivered or explicitly declined.
+
+**Delivered 2026-07-30:** #8 — a traveller can claim a further tag from the validation results without losing them. Scan-only, because `/manual-entry` already covers typed entry. Design: `docs/superpowers/specs/2026-07-30-claim-from-validation-results-design.md`.
+
+**Delivered 2026-07-30:** #12 and #13 on web — a sticker tag can be issued straight to a traveller, and merchant and traveller signatures are captured. Design: `docs/superpowers/specs/2026-07-30-web-scan-sticker-parity-design.md` in `mobile/app`.
 
 **Delivered 2026-07-30:** #29 in both apps, and #15 (alias #26) on web — the merchant-info fix shipped with the endpoint split, since fixing which endpoint creates a tag does not help a merchant who cannot get past the lookup. Design: `docs/superpowers/specs/2026-07-30-role-correct-tag-creation-design.md` in `mobile/app`.
 
