@@ -21,7 +21,14 @@ its own setup. Where a flow needs something this list does not cover, its own
 the state the data has to be in before the first step.
 
 - **Sticker U** — a printed sticker QR whose book has **not** been allocated
-  to any store yet.
+  to any store yet. **Single-use, and there is no reset.** Creating a tag
+  against an unallocated line allocates that book to the merchant sent
+  permanently, first-use-wins, and no call in this guide re-points it — so
+  the moment a flow submits a create against Sticker U, that book becomes a
+  Sticker O for every later flow. `TF-A20`, `TF-A21`, `TF-A52`, `TF-A54` and
+  `TF-A56` each consume one. Have a **fresh unallocated book per run** of
+  each, and never use stock anyone still needs unallocated. See
+  [`endpoints.md`](endpoints.md#sticker-allocation-permanent-on-first-use).
 - **Sticker O** — a printed sticker QR whose book is allocated to the
   tester's **own** store — the store Staff M (below) works for.
 - **Sticker F** — a printed sticker QR whose book is allocated to a store
@@ -436,12 +443,12 @@ does not work for)
    EXPECT a new **Issued** tag, already carrying Traveller A, created in
    the same single submission with no separate assign step.
 
-**Note.** If this same create is attempted against an unallocated sticker
-(Sticker U) rather than Sticker O, the result is not established by this
-guide — the underlying SDK's own documentation disagrees about whether
-that call is rejected or permanently allocates the book. See
-`endpoints.md`'s "Sticker allocation: an unresolved contradiction". Do not
-run this variant against a book anyone still needs unallocated.
+**Warning.** If this same create is attempted against an unallocated
+sticker (Sticker U) rather than Sticker O, it **permanently allocates the
+whole sticker book** to the merchant sent, and the allocation cannot be
+re-pointed afterwards. That is the documented behaviour, not a risk — see
+`endpoints.md`'s "Sticker allocation: permanent on first use". Do not run
+this variant against a book anyone still needs unallocated.
 
 **Negative cases**
 - Attempt the create with no product group priced at all.
@@ -458,21 +465,23 @@ invoice amount to enter
    EXPECT the picked store's product groups load, ready to price a line.
 2. Enter an invoice amount, leave the traveller field empty, and submit the
    create action.
-   **The result of this step is not established by this guide — see the
-   note below before running it.**
+   **This step permanently allocates Sticker U's whole book to the merchant
+   picked in step 1 — read the warning below before running it.**
+   EXPECT a new Draft tag bound to the sticker, and the book allocated from
+   here on: re-scanning any line of it now reports it allocated to that
+   merchant, with the picker gone.
 3. Separately, repeat against Sticker O (already allocated) instead.
-   EXPECT a normal, unambiguous create: a new Draft or Issued tag bound to
-   the sticker, with the picked-merchant question moot since the book is
-   already spoken for.
+   EXPECT a normal create: a new Draft or Issued tag bound to the sticker,
+   with the picked-merchant question moot since the book is already spoken
+   for.
 
-**Note.** Step 2's underlying SDK documentation disagrees about whether
-creating against a still-unallocated line is rejected outright or
-permanently allocates the whole sticker book to the picked store — see
-`endpoints.md`'s "Sticker allocation: an unresolved contradiction". Do not
-treat either a rejection or a success in step 2 as confirmation of which
-reading is correct, and do not repeat step 2 against a second unallocated
-sticker without a settled answer — if the book is in fact allocated by
-that call, it cannot be pointed at a different store afterward.
+**Warning.** Step 2 **permanently allocates the whole sticker book** to the
+picked store. The allocation cannot be re-pointed by any create, and no
+call in this guide undoes it — `endpoints.md`'s "Sticker allocation:
+permanent on first use" has the two cases and the sourcing. Use a book
+nobody still needs unallocated, and expect to need a **fresh** unallocated
+book for every run of this flow: once step 2 has succeeded, Sticker U is
+Sticker O.
 
 **Negative cases**
 - Attempt this create signed in as Staff M (a merchant) instead of Staff R.
@@ -496,15 +505,18 @@ that call, it cannot be pointed at a different store afterward.
    signature pad for a Refund Point, since a Refund Point is not the
    merchant.
 4. Sign the traveller pad and submit the create.
-   **The result of this step is not established by this guide — see the
-   note below before running it.**
+   **This step permanently allocates Sticker U's whole book — read the
+   warning below before running it.**
+   EXPECT the traveller signature present on the created tag, and the book
+   now allocated to the merchant picked in step 3.
 
-**Note.** Sticker U is still unallocated at the point it was picked in
-step 3, so completing the create in step 4 is the same disputed action
-`TF-A20` describes — see `endpoints.md`'s "Sticker allocation: an
-unresolved contradiction". Do not treat either a rejection or a success in
-step 4 as confirmation of which reading is correct, and do not run that
-step against a book anyone still needs unallocated.
+**Warning.** Sticker U is still unallocated at the point it was picked in
+step 3, so completing the create in step 4 **permanently allocates the
+whole sticker book** to that merchant, exactly as in `TF-A20` step 2 — see
+`endpoints.md`'s "Sticker allocation: permanent on first use". Nothing
+re-points it afterwards. Use a book nobody still needs unallocated, and
+note that step 4 consumes Sticker U's unallocated state for every later
+flow that needs one.
 
 **Negative cases**
 - As Staff M, sign the traveller pad but never attach a traveller, then
@@ -1112,23 +1124,21 @@ number as a 1D code)
    from the mobile app's equivalent screen. Stop here — this step does not
    itself require submitting the create.
 
-**Note.** The line is still unallocated throughout this flow. Any step
+**Warning.** The line is still unallocated throughout this flow. Any step
 that actually submits the create against it — including the negative case
-below — is the same disputed action `TF-A56` describes: the underlying
-SDK's own documentation disagrees about whether that create is rejected
-outright or permanently allocates the whole sticker book to the picked
-store, and this guide does not pick a side — see `endpoints.md`'s "Sticker
-allocation: an unresolved contradiction". Do not treat either a rejection
-or a success on such a submit as confirmation of which reading is correct,
-and do not run one against a book anyone still needs unallocated.
+below — **permanently allocates the whole sticker book** to the picked
+store, exactly as in `TF-A56` step 2, and nothing re-points it afterwards.
+See `endpoints.md`'s "Sticker allocation: permanent on first use". Steps 1
+and 2 only pick and re-pick, which is free; it is the submit that commits.
+Use a book nobody still needs unallocated.
 
 **Negative cases**
 - Pick a store, then submit the create without ever changing the pick
-  again. **This submit carries the same unresolved outcome the note above
-  describes — its own result is not established by this guide.** Whatever
-  that outcome is, EXPECT no re-pick warning of any kind on this attempt —
-  the discard behaviour in step 2 is specific to **changing** an
-  already-made pick, not to making one.
+  again. **This submit permanently allocates the book, per the warning
+  above — run it only on a book you are willing to commit.** EXPECT no
+  re-pick warning of any kind on this attempt — the discard behaviour in
+  step 2 is specific to **changing** an already-made pick, not to making
+  one.
 
 ### TF-A53 — Attach a traveller to a scanned sticker tag by document search
 
@@ -1162,15 +1172,16 @@ through pricing Sticker U, having picked a merchant
    EXPECT only the traveller pad is offered — no merchant pad for a Refund
    Point.
 4. Sign the traveller pad and submit the create.
-   **The result of this step is not established by this guide — see the
-   note below before running it.**
+   **This step permanently allocates Sticker U's whole book — read the
+   warning below before running it.**
+   EXPECT the traveller signature present on the created tag, and the book
+   now allocated to the merchant picked in step 3.
 
-**Note.** Sticker U is still unallocated at the point it was picked in
-step 3, so completing the create in step 4 is the same disputed action
-`TF-A56` describes — see `endpoints.md`'s "Sticker allocation: an
-unresolved contradiction". Do not treat either outcome in step 4 as
-confirmation of which reading is correct, and do not run that step against
-a book anyone still needs unallocated.
+**Warning.** Sticker U is still unallocated at the point it was picked in
+step 3, so completing the create in step 4 **permanently allocates the
+whole sticker book** to that merchant, exactly as in `TF-A56` step 2 — see
+`endpoints.md`'s "Sticker allocation: permanent on first use". Nothing
+re-points it afterwards. Use a book nobody still needs unallocated.
 
 **Negative cases**
 - As Staff M, attach a traveller, sign the traveller pad, then remove the
@@ -1193,9 +1204,10 @@ a book anyone still needs unallocated.
 3. Repeat with Traveller A attached first.
    EXPECT a new Issued tag, carrying Traveller A, in one submission.
 
-**Note.** Attempting this same create against an unallocated sticker
-(Sticker U) is not established by this guide — see the note on `TF-A19`
-and `endpoints.md`'s "Sticker allocation: an unresolved contradiction".
+**Warning.** Attempting this same create against an unallocated sticker
+(Sticker U) **permanently allocates that whole book** to the merchant sent,
+with no way back — see the warning on `TF-A19` and `endpoints.md`'s
+"Sticker allocation: permanent on first use".
 
 **Negative cases**
 - Attempt the create with no product group priced.
@@ -1210,18 +1222,20 @@ invoice amount
 1. Signed in as Staff R, scan Sticker U, pick a merchant, and price a line.
    EXPECT the picked store's product groups available.
 2. Submit the create with no traveller attached.
-   **The result of this step is not established by this guide — see the
-   note below before running it.**
+   **This step permanently allocates Sticker U's whole book to the merchant
+   picked in step 1 — read the warning below before running it.**
+   EXPECT a new Draft tag bound to the sticker, and the book allocated from
+   here on: re-scanning any line of it now reports it allocated to that
+   merchant, with the picker gone.
 3. Separately, repeat against Sticker O (already allocated).
-   EXPECT a normal, unambiguous create.
+   EXPECT a normal create.
 
-**Note.** Step 2 is the same disputed action `TF-A20` describes for the
-mobile app: the underlying SDK's own documentation disagrees about whether
-creating against a still-unallocated line is rejected outright or
-permanently allocates the whole sticker book to the picked store — see
-`endpoints.md`'s "Sticker allocation: an unresolved contradiction". Do not
-run step 2 against a book anyone still needs unallocated, and do not treat
-either outcome as settling the question.
+**Warning.** Step 2 **permanently allocates the whole sticker book** to the
+picked store, exactly as `TF-A20` step 2 does on the mobile app. The
+allocation cannot be re-pointed by any create and nothing in this guide
+undoes it — see `endpoints.md`'s "Sticker allocation: permanent on first
+use". Use a book nobody still needs unallocated, and expect to need a fresh
+one for every run: once step 2 has succeeded, Sticker U is Sticker O.
 
 **Negative cases**
 - Attempt this same create signed in as Staff M (a merchant).

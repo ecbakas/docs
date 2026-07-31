@@ -196,12 +196,11 @@ contradiction" (`MerchantBlock.tsx:61`–`70`). `web-app`'s equivalent
 unconditionally, and `MerchantSelector` renders whatever `notice` it is given
 with no check on the picked value (`merchant-selector.tsx:169`–`173`) — so a
 Refund Point on `web-app` sees the warning the instant an unallocated line
-resolves, before picking anyone. See [`merchant.md` § An unallocated book: an
-unresolved
-contradiction](merchant.md#an-unallocated-book-an-unresolved-contradiction)
-for what the warning itself asserts and why this guide does not endorse it —
-not repeated here; this paragraph is only about *when* it appears, not
-whether it is accurate.
+resolves, before picking anyone. See [`merchant.md` § An unallocated book: the
+create allocates it,
+permanently](merchant.md#an-unallocated-book-the-create-allocates-it-permanently)
+for what the warning asserts and the evidence that it is right — not repeated
+here; this paragraph is only about *when* it appears.
 
 ### Creating the tag (`A20`/`A56`, `#10`, `#29`)
 
@@ -243,17 +242,16 @@ ever given `["traveller"]` as its `targets` for a non-merchant caller
 one is an unresolved question this chapter does not settle.** The create
 call's own `merchantId` parameter is documented as ignored once the line is
 allocated, so both apps omit it entirely on that branch — the "allocated"
-half of the sentence above is settled. What creating against an
-**unallocated** line actually does is not: the SDK's own two doc comments
-disagree about whether the create rejects an unallocated header outright or
-allocates it permanently, and this guide does not pick a side — see
-[`endpoints.md` § Sticker allocation: an unresolved
-contradiction](endpoints.md#sticker-allocation-an-unresolved-contradiction).
-Both apps' own source comments assert the "allocates permanently" reading (
-`stickerTag.logic.ts:16`–`18`; `client.tsx:697`–`698`), which is why the UI
-described above behaves as if picking is a one-way door — but that is what
-the **UI** asserts, not something this chapter has verified against a real
-allocation outcome.
+half of the sentence above is settled. So is the other half: creating against
+an **unallocated** line allocates the whole sticker book to the merchant sent,
+permanently, and nothing in this guide re-points it — see [`endpoints.md`
+§ Sticker allocation: permanent on first
+use](endpoints.md#sticker-allocation-permanent-on-first-use) for the two cases
+and the evidence. Both apps' own source comments say exactly this
+(`stickerTag.logic.ts:16`–`18`; `client.tsx:697`–`698`), which is why the UI
+described above behaves as if picking is a one-way door. It is one. For a
+Refund Point that is the sharpest edge on this page: the merchant is picked
+from a search box, and the pick is the commitment.
 
 **Status and traveller are the operator's choice, coupled the same way as
 the merchant path**: `args.traveller ? "Issued" : "Draft"`

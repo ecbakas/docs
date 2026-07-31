@@ -185,17 +185,15 @@ and neither is trusted to share casing:
   (`A47`, `client.tsx:483`–`486`) — and produces a terminal, read-only card
   with an error-toned notice (`buildMerchantProps`, `client.tsx:744`–`754`).
 
-### An unallocated book: an unresolved contradiction
+### An unallocated book: the create allocates it, permanently
 
-What happens when a tag is created against a sticker line **nobody has
-allocated yet** is not something this guide asserts, because the SDK's own two
-doc comments disagree about it — see [`endpoints.md` § Sticker allocation: an
-unresolved contradiction](endpoints.md#sticker-allocation-an-unresolved-contradiction).
-This chapter does not pick a side. What it can report, independently
-confirmed on both apps, is what the **UI itself** tells the merchant on this
-path — one specific reading of that contradiction, stated as fact in the
-app's own comments, not something either app has verified against a real
-allocation outcome:
+Creating a tag against a sticker line **nobody has allocated yet** allocates the
+whole sticker book to the merchant sent, permanently, and no call in this guide
+re-points it — see [`endpoints.md` § Sticker allocation: permanent on first
+use](endpoints.md#sticker-allocation-permanent-on-first-use) for the two cases and
+the evidence. What this chapter adds is that **both apps' own UI comments say the
+same thing**, independently confirmed on each, so the warning a merchant sees is
+not a hedge:
 
 - `super-app`'s `MerchantBlock` carries the comment "The allocation warning
   shows on both unallocated branches: it is equally true when the merchant is
@@ -213,9 +211,10 @@ allocation outcome:
 
 So a merchant booking a fresh, unallocated sticker book against their own
 store sees a warning that reads as though it applies to someone else's
-mistake — both apps' own source comments say why (they assume the create
-allocates the book), and `endpoints.md` is where that assumption's accuracy is
-tracked as unresolved rather than settled here.
+mistake — and both apps are right to show it. The create commits the whole book
+to that merchant for good, which is as true when the merchant is themselves as
+when it is anyone else. `endpoints.md` carries the sourcing, including the one
+generated client that still describes this differently.
 
 ### Creating a tag against the sticker (`A19`/`A55`)
 

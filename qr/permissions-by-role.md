@@ -236,8 +236,9 @@ The consequence of getting this backwards is concrete, not cosmetic: treating a
 stray `MerchantId` as authoritative on a session that also carries a Refund Point
 claim would resolve, display and post the operator's **own** store instead of the
 merchant the sticker book is actually being booked for on `A55`/`A56`'s create
-call — silently mis-attributing, or (per the unresolved contradiction in
-`endpoints.md`) permanently mis-allocating, a book nobody at that counter chose.
+call — silently mis-attributing and, on an unallocated book, permanently
+mis-allocating a book nobody at that counter chose (`endpoints.md` § Sticker
+allocation: permanent on first use).
 `grantedPolicies` for `apps/web` is populated at boot through
 `GrantedPoliciesProvider` (`web-app/packages/utils/policies/granted-policies.tsx`),
 fed from `getGrantedPoliciesApi()` in
