@@ -55,7 +55,13 @@ const PARTY_CHAPTER = new Map([
  * describe.
  */
 const ACTOR_COUNT = (cell) => {
-  if (/^anyone$/i.test(cell.trim())) return PERSPECTIVES.length;
+  // "Anyone" means every party, and it is frequently qualified — the registry
+  // carries "Anyone, pre-login" and "Anyone, including logged out". Matching the
+  // bare word only was a bug: those two cells fell through to the party count,
+  // scored zero, hit the floor of one chapter, and would have made A01 and A06
+  // unnarratable in the three chapters permissions-by-role.md files them under.
+  // Found by Task 7 before Tasks 8-11 could trip over it.
+  if (/^anyone\b/i.test(cell.trim())) return PERSPECTIVES.length;
   const named = cell
     .split(",")
     .map((s) => s.trim().toLowerCase())

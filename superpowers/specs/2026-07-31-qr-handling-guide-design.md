@@ -289,7 +289,8 @@ failing scan without knowing who authored the string.
 | Code | Produced by | Content authored by |
 | --- | --- | --- |
 | **Sticker QR** | web · `operations/stickers/[stickerId]/_components/print-sticker-lines-action.ts` | client, `buildTagUrl` from `@unirefund/qr` — encodes only the `s` key |
-| **Tag QR** | web · `tax-free-tags/[tagId]/_components/print-tag.tsx`, via `react-qr-code` | **the backend** — the value is `TagDetailDto.publicLink`, not built locally |
+| **Tag QR** (web) | web · `tax-free-tags/[tagId]/_components/print-tag.tsx`, via `react-qr-code` | **the backend** — the value is `TagDetailDto.publicLink`, not built locally |
+| **Tag QR** (POS) | `pos-app` · `src/utils/tagQr.ts:23` | client, `resolveTagLink` from `@unirefund/qr` — and `:35` wires its `onDrift` callback, so **POS is the only producer anywhere that would notice the backend link and the locally-built one disagreeing** |
 | **Code128 tag-number barcode** | `pos-app` · `screens/(auth)/Tags/TagDetail/_components/tagPrintTemplate.ts` — `printBarcode(tagNumber, "code128")` | nobody — it is a bare tag number, which is exactly why capability `#28` existed |
 | **Validate QR** | web · `(external)/qr/_components/rolling-qr-card.tsx`, the airport kiosk | server-issued and rolling, so it expires mid-flow by design (`#7`) |
 
@@ -298,13 +299,16 @@ both belong in the guide:
 
 **The tag QR has two possible authors.** `@unirefund/qr` is described everywhere as
 the single source of truth for the wire format, and for the sticker QR it is. The
-printed *tag* QR is not built with it — `print-tag.tsx` encodes the backend's
+printed *tag* QR is not built with it on web — `print-tag.tsx` encodes the backend's
 `publicLink` field verbatim. So the claim "one library decides the format" is true
 of stickers and only partly true of tags. Whether the two agree is not verifiable
 from this repository, which is what makes it a [Finding](#findings) rather than a
 paragraph: if `publicLink` and `buildTagUrl` ever diverge, a printed tag QR and a
-printed sticker QR resolve differently, and nothing in either codebase would catch
-it.
+printed sticker QR resolve differently — and **nothing on `apps/web` would catch
+it.** *(Corrected 2026-07-31: this previously read "nothing in either codebase".
+`pos-app` builds its tag QR with `resolveTagLink` and wires the library's `onDrift`
+callback at `src/utils/tagQr.ts:35`, so the one app the guide excludes as a consumer
+is the only one instrumented to detect the divergence.)*
 
 **`pos-app` produces a code no app could resolve.** A bare tag number is not a
 slug, the mobile scanner's default symbologies include `code-128` so the barcode
@@ -466,10 +470,21 @@ each repeat:
   `buildValidateUrl` / `extractValidateQrValue`, and all four apps depend on it so
   that a code **decodes** identically everywhere. The slug keys are `i` tag id, `n`
   tag number, `t` traveller document number, `s` sticker line number, and the guide
-  states the precedence rules that follow — a slug carrying `s` is a sticker even
-  when it also carries tag fields; a slug carrying only `t` identifies nothing
-  openable. Its `vectors.json` is named as the fixture any parser change must still
-  satisfy.
+  states the precedence rules that follow. A slug carrying only `t` identifies
+  nothing openable. Its `vectors.json` is named as the fixture any parser change must
+  still satisfy.
+
+  **The two apps disagree about a slug carrying both `s` and a tag identity, so the
+  guide presents it as a divergence, not a rule.** *(Corrected 2026-07-31 by Task 7,
+  which found this while checking a citation; this spec previously asserted the
+  `apps/web` rule as universal.)* `apps/web` treats such a slug as a **sticker** —
+  "a slug with `s` came from a sticker, and the sticker flow resolves the tag from it
+  anyway". `super-app` treats it as a **tag**: `src/utils/qr/classifyScan.ts:52`
+  tests `data.tagId || data.tagNumber` first, and its comment reads "the sticker is
+  only how that tag was printed, and the tag is the more specific answer". Both apps
+  call their own choice the more specific answer, so **one printed code routes to
+  different destinations depending on which app scans it.** That is a Finding and
+  deserves a capability number.
 
   The chapter is careful about one thing here: the library is the single source of
   truth for **decoding**, and for **encoding** the sticker QR — but not for every
