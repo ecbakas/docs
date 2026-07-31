@@ -22,7 +22,7 @@
   - a permission cell for an endpoint needing a **token but no grant**: `— authenticated, no grant`
   - an intentionally-not-applicable cell: `—`. **A `— client only` action takes `—` in its `Permission` cell, never `— anonymous`** — there is no endpoint there to be anonymous about, and `— anonymous` would tell a reader an endpoint needs no token when no endpoint exists. Ruled 2026-07-31: Task 2 found six client-only actions that are in fact reachable only inside an authenticated session, which `— anonymous` actively misdescribed.
   - All use U+2014 EM DASH, matching the rest of `docs/`.
-- **A missing `**Requires permissions:**` line means "no permission required" — which is not the same as anonymous.** Decide which of the two markers applies from **the method's doc comment and its call site** — specifically whether the client wrapper sends a bearer token. **Do not use the declared status codes:** Task 2 established they are generator boilerplate, identical on all 55 `TagService` and 11 `ExportValidationService` methods, so the genuinely anonymous `getApiTagServicePublicTagByTagIdById` declares 401 and 403 exactly like a gated one. The reliable tell is the wrapper: the `TagPublicService` wrappers deliberately bypass `fetchRequest`, which would otherwise send `Bearer undefined`. Ruled 2026-07-31 after Task 2 found the case: `POST /api/export-validation-service/qrEvidence/{qrValue}/scan` carries no annotation, yet its comment reads *"the traveller scans the kiosk's QR with their own authenticated device. The current user's TravellerDocumentId claim identifies whose tags to clear"* and it lists 401/403 — so it needs a login and `— anonymous` would be false. Its sibling `.../scanWithTravellerInfo` **is** annotated (`ExportValidationService.QrEvidence.ScanWithTravellerInfo`). `TagPublicService` is the genuinely anonymous case; one of its methods says so outright.
+- **A missing `**Requires permissions:**` line means "no permission required" — which is not the same as anonymous.** Decide which of the two markers applies from **the method's doc comment and its call site** — specifically whether the client wrapper sends a bearer token. **Do not use the declared status codes:** Task 2 established they are generator boilerplate, identical on all 55 `TagService` and 11 `ExportValidationService` methods, so the genuinely anonymous `getApiTagServicePublicTagByTagIdById` declares 401 and 403 exactly like a gated one. The reliable tell is the wrapper: the `TagPublicService` wrappers deliberately bypass `fetchRequest`, which would otherwise send `Bearer undefined`. Ruled 2026-07-31 after Task 2 found the case: `POST /api/export-validation-service/qr-evidence/{qrValue}/scan` carries no annotation, yet its comment reads *"the traveller scans the kiosk's QR with their own authenticated device. The current user's TravellerDocumentId claim identifies whose tags to clear"* and it lists 401/403 — so it needs a login and `— anonymous` would be false. Its sibling `.../scan-with-traveller-info` **is** annotated (`ExportValidationService.QrEvidence.ScanWithTravellerInfo`). `TagPublicService` is the genuinely anonymous case; one of its methods says so outright.
 - **Every one of the nine files carries a `Verified against:` line** — the date plus the commit surveyed for each of the three apps. Get commits with `git -C <app> rev-parse --short HEAD`.
 - **No placeholders.** The checker fails the build on `TBD`, `TODO`, `FIXME`, `fill in later`, `verify this later`.
 - **In `endpoints.md`, only the main endpoint table may use `Endpoint` as its first header cell.** The overlapping-endpoint and anti-pattern tables must lead with a different column name, or the parser will absorb their rows.
@@ -104,7 +104,13 @@ entry.
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `check.mjs` with named checks `files`, `stamps`, `placeholders`, `registry`, `perspectives`, `endpoints`, `permissions`, `testflows`. Every later task runs a subset. The marker strings `— client only`, `— contrast`, `— anonymous` and the table header names below are the contract every later task writes against.
+- Produces: `check.mjs` with named checks `files`, `stamps`, `placeholders`, `registry`, `perspectives`, `endpoints`, `permissions`, `testflows`. Every later task runs a subset. The marker strings `— client only`, `— contrast`, `— anonymous`, `— authenticated, no grant`, `—` and the table header names below are the contract every later task writes against.
+
+> **Amended 2026-07-31, after Task 2.** The source below is what Task 1 shipped. `check.mjs` has since gained two rules the live file carries and this listing does not — re-read `docs/qr/_verify/check.mjs` rather than this block if you need its current behaviour:
+> 1. **A `Permission` marker whitelist.** A `— client only` row must take `—`; a row with a real endpoint must not take `—`; any cell starting with an em dash must be one of `—` / `— anonymous` / `— authenticated, no grant`. Non-emptiness alone had let a client-only row claim `— anonymous`.
+> 2. **Cross-role narration.** `perspectives` caps an id's chapter count at the number of parties its `Actor` cell names, instead of requiring exactly one. `Anyone` counts as every party. Six rows are genuinely cross-role and were unnarratable under the original rule.
+>
+> Both were tested the same way as the original: real registry still passes, and each new rule was proved to reject an injected violation.
 
 - [ ] **Step 1: Write the checker**
 
@@ -480,7 +486,8 @@ Apply [the derivation protocol](#the-derivation-protocol) to every action on:
 `src/app/(auth)/tags/[tagId].tsx`, `src/app/(auth)/index.tsx` (the Home scan CTA).
 
 Also cover the client-only actions, which take `— client only` in `Endpoint` and
-`— anonymous` in `Permission`:
+`—` in `Permission` (**not** `— anonymous` — see Global Constraints; the checker now
+rejects that combination):
 `src/utils/qr/classifyScan.ts`, `src/utils/qr/scanDestination.ts`,
 `src/hooks/useQrScanLauncher.tsx`, `src/hooks/useScanRouting.ts`,
 `src/store/pendingScan.ts` with `src/hooks/useResumePendingScan.tsx`.
@@ -1324,10 +1331,11 @@ Checked against the spec section by section.
 tenth artifact, `_verify/check.mjs`. It is tooling, not guide content, which is why it
 sits under `_verify/` and is excluded from the `GUIDE` list the checker itself walks.
 
-**Type consistency.** The marker strings `— client only`, `— contrast`, `— anonymous`
-are declared once in Global Constraints and used identically in the checker and in
-Tasks 2–5. They are **literal U+2014 em dashes** in `check.mjs`'s `CLIENT_ONLY` and
-`CONTRAST` constants, so the file is UTF-8, not ASCII — write it with UTF-8 encoding
+**Type consistency.** The marker strings `— client only`, `— contrast`, `— anonymous`,
+`— authenticated, no grant` and `—` are declared once in Global Constraints and used
+identically in the checker and in Tasks 2–5. They are **literal U+2014 em dashes** in
+`check.mjs`'s `CLIENT_ONLY`, `CONTRAST`, `NA`, `ANON` and `AUTH_NO_GRANT`
+constants, so the file is UTF-8, not ASCII — write it with UTF-8 encoding
 and do not substitute a hyphen. This was exercised: a fixture whose `Endpoint` cell
 read `— client only` was correctly rejected when it also appeared in `endpoints.md`.
 The registry header is

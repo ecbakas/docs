@@ -31,6 +31,20 @@ const PERSPECTIVES = ["traveller.md", "merchant.md", "refund-point.md", "customs
 
 const CLIENT_ONLY = "— client only";
 const CONTRAST = "— contrast";
+const NA = "—";
+const ANON = "— anonymous";
+const AUTH_NO_GRANT = "— authenticated, no grant";
+/** Every marker a Permission cell may hold. Anything else must be a real permission string. */
+const PERM_MARKERS = [NA, ANON, AUTH_NO_GRANT];
+/**
+ * How many parties an Actor cell names, so a cross-role action may be narrated in
+ * that many chapters. "Anyone" is every party, not one — it is what the registry
+ * uses for the shared scanner, which all four chapters legitimately describe.
+ */
+const ACTOR_COUNT = (cell) => {
+  if (/^anyone$/i.test(cell.trim())) return PERSPECTIVES.length;
+  return cell.split(",").map((s) => s.trim()).filter(Boolean).length;
+};
 const ID_RE = /^A\d{2}$/;
 const ID_ANYWHERE = /\bA\d{2}\b/g;
 
@@ -129,8 +143,23 @@ function loadRegistry() {
 
     const endpoint = iEnd >= 0 ? (cells[iEnd] ?? "") : "";
     const perm = iPerm >= 0 ? (cells[iPerm] ?? "") : "";
-    if (!perm) fail(`${id}: empty Permission cell — a permission string or "— anonymous"`);
+    if (!perm) fail(`${id}: empty Permission cell — a permission string or one of ${PERM_MARKERS.join(" / ")}`);
     if (!endpoint) fail(`${id}: empty Endpoint cell — an endpoint or "${CLIENT_ONLY}"`);
+
+    // Marker vocabulary. Non-emptiness alone let a client-only row claim
+    // "— anonymous", which asserts a token rule about an endpoint that does
+    // not exist. Ruled 2026-07-31; enforced here so prose is not the only guard.
+    if (endpoint === CLIENT_ONLY) {
+      if (perm !== NA) {
+        fail(`${id}: "${CLIENT_ONLY}" must take "${NA}" in Permission, not "${perm}" — there is no endpoint to be anonymous about`);
+      }
+    } else if (endpoint) {
+      if (perm === NA) {
+        fail(`${id}: has endpoint "${endpoint}" but Permission is "${NA}" — state the permission, or "${ANON}" / "${AUTH_NO_GRANT}"`);
+      } else if (perm.startsWith("—") && !PERM_MARKERS.includes(perm)) {
+        fail(`${id}: Permission "${perm}" is not a defined marker — use one of ${PERM_MARKERS.join(" / ")} or a real permission string`);
+      }
+    }
 
     byId.set(id, { endpoint, perm, actor: iActor >= 0 ? (cells[iActor] ?? "") : "" });
     if (endpoint && endpoint !== CLIENT_ONLY) endpoints.add(endpoint);
@@ -155,11 +184,22 @@ checks.perspectives = () => {
       seen.get(id).push(f);
     }
   }
+  const { byId } = loadRegistry();
   for (const id of ids) {
     const where = seen.get(id) ?? [];
-    if (where.length === 0) fail(`${id}: narrated in no perspective chapter`);
-    else if (where.length > 1) {
-      fail(`${id}: narrated in ${where.length} chapters (${where.join(", ")}) — want exactly one`);
+    if (where.length === 0) {
+      fail(`${id}: narrated in no perspective chapter`);
+      continue;
+    }
+    // A single-actor action has exactly one home chapter. A cross-role action —
+    // the shared scanner, manual entry, traveller search — legitimately belongs
+    // to each party that performs it, capped at how many the registry names.
+    const parties = ACTOR_COUNT(byId.get(id)?.actor ?? "") || 1;
+    if (where.length > parties) {
+      fail(
+        `${id}: narrated in ${where.length} chapters (${where.join(", ")}) but its Actor names ${parties} ` +
+          `— narrate it only where the registry says it applies`
+      );
     }
   }
 };

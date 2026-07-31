@@ -96,7 +96,13 @@ The id is the join key. An action appears in five places, and a reviewer can pro
 coverage by checking that every id appears in all five:
 
 1. one row in `actions-and-routes.md`,
-2. narrated in exactly one perspective chapter,
+2. narrated in a perspective chapter — **exactly one for a single-actor action, and
+   up to one per party for a cross-role one.** A genuinely shared action (the
+   scanner, manual entry, traveller search) belongs to each party that performs it;
+   forcing it into one arbitrary chapter would hide it from the others. The registry's
+   `Actor` cell is the cap, so the allowance cannot be used to narrate an action
+   somewhere it does not apply. *(Amended 2026-07-31: Task 2 found six cross-role
+   rows that the original exactly-one rule would have made unnarratable.)*
 3. in the `Actions` column of its endpoint's row in `endpoints.md`,
 4. under its role in `permissions-by-role.md`,
 5. as `TF-A##` in `test-flows.md`.
@@ -225,10 +231,10 @@ because a reader's first question is whether they must be logged in:
   *"Anonymous — the unguessable Guid id is the credential."* The traveller's whole
   scan-before-login path rests on this.
 - `— authenticated, no grant` — a token is required, no permission gates it.
-  `POST /api/export-validation-service/qrEvidence/{qrValue}/scan` is the case:
+  `POST /api/export-validation-service/qr-evidence/{qrValue}/scan` is the case:
   unannotated, but *"the traveller scans the kiosk's QR with their own authenticated
   device. The current user's TravellerDocumentId claim identifies whose tags to
-  clear"*, and it documents 401/403. Its sibling `.../scanWithTravellerInfo` **is**
+  clear"*, and it documents 401/403. Its sibling `.../scan-with-traveller-info` **is**
   annotated, with `ExportValidationService.QrEvidence.ScanWithTravellerInfo`.
 
 Which case applies is read from the method's own doc comment **and its call site** —
