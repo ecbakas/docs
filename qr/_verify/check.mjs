@@ -305,7 +305,11 @@ checks.testflows = () => {
   const { ids } = loadRegistry();
   const md = read("test-flows.md");
   const flows = new Set(
-    (md.match(/^#{2,4}\s+TF-A\d{2}\b/gm) ?? []).map((h) => h.match(/A\d{2}/)[0])
+    // Two digits here was a bug, missed when ID_RE and ID_ANYWHERE were widened
+    // to A\d{2,3}: `TF-A100` matched neither the heading pattern (\d{2} then \b
+    // fails between the two zeros) nor the extraction (which would have yielded
+    // "A10"). Found by Task 12, whose last three flows are A100-A102.
+    (md.match(/^#{2,4}\s+TF-A\d{2,3}\b/gm) ?? []).map((h) => h.match(/A\d{2,3}/)[0])
   );
   for (const id of ids) if (!flows.has(id)) fail(`${id}: no "TF-${id}" heading in test-flows.md`);
   for (const id of flows) if (!ids.has(id)) fail(`test-flows.md: TF-${id} has no registry row`);
