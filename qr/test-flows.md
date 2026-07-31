@@ -1109,13 +1109,26 @@ number as a 1D code)
    priced against the first store's VAT rates), and the picked-invoice
    number's fate should be checked explicitly — record whether it survives
    the re-pick or is cleared with it, since this is a documented difference
-   from the mobile app's equivalent screen.
+   from the mobile app's equivalent screen. Stop here — this step does not
+   itself require submitting the create.
+
+**Note.** The line is still unallocated throughout this flow. Any step
+that actually submits the create against it — including the negative case
+below — is the same disputed action `TF-A56` describes: the underlying
+SDK's own documentation disagrees about whether that create is rejected
+outright or permanently allocates the whole sticker book to the picked
+store, and this guide does not pick a side — see `endpoints.md`'s "Sticker
+allocation: an unresolved contradiction". Do not treat either a rejection
+or a success on such a submit as confirmation of which reading is correct,
+and do not run one against a book anyone still needs unallocated.
 
 **Negative cases**
 - Pick a store, then submit the create without ever changing the pick
-  again.
-  EXPECT no re-pick warning of any kind — the discard behaviour in step 2
-  is specific to **changing** an already-made pick, not to making one.
+  again. **This submit carries the same unresolved outcome the note above
+  describes — its own result is not established by this guide.** Whatever
+  that outcome is, EXPECT no re-pick warning of any kind on this attempt —
+  the discard behaviour in step 2 is specific to **changing** an
+  already-made pick, not to making one.
 
 ### TF-A53 — Attach a traveller to a scanned sticker tag by document search
 
