@@ -37,12 +37,12 @@ registry wins and the other file is wrong.
 ## QR types and the wire format
 
 Three QR codes exist in the Unirefund world — sticker, tag and validate — and one
-library reads all three (a fourth printed code, a 1D Code128 barcode, is the
-subject of the next section).
+library reads all three:
 [`@unirefund/qr`](https://github.com/ayasofyazilim-clomerce/unirefund-qr)
 (`github:ayasofyazilim-clomerce/unirefund-qr`, version `0.1.0`), a dependency of
-`super-app`, `pos-app`, `apps/web` and `apps/ssr` alike. Its exports, read from
-`dist/types/index.d.ts`:
+`super-app`, `pos-app`, `apps/web` and `apps/ssr` alike. A fourth printed code, a
+1D Code128 barcode, is the subject of the next section; the library does not read
+it. The package's exports, read from `dist/types/index.d.ts`:
 
 | Module | Exports |
 | --- | --- |
@@ -52,9 +52,24 @@ subject of the next section).
 | `validate` | `buildValidateUrl`, `extractValidateQrValue`, `isValidateScan` |
 
 **The scope of that claim matters, so it is stated narrowly.** The library is the
-single source of truth for **decoding** — every scanner in every app reaches a
-Unirefund code through `decodeTagScan` or `extractValidateQrValue`, and nothing
-parses a slug by hand. For **encoding** it is the source for some producers and
+single source of truth for **decoding**: every app reaches a Unirefund code
+through one of three entry points — `decodeTagScan` for a camera or wedge read,
+`decodeTagSlug` for a slug already in hand, and `extractValidateQrValue` for a
+validate URL. `decodeTagSlug` is the one that matters most on `apps/ssr`, because
+it is what the primary traveller route uses: `/tag/[slug]` hands it the route
+parameter directly (`(public)/tag/[slug]/page.tsx:140`).
+
+One app-local exception exists, and it is worth naming rather than rounding off.
+`apps/ssr`'s claim-tag modal defines a **private** `slugFromScan` at
+`(public)/validate/_components/claim-tag-modal.tsx:53` — a line-for-line duplicate
+of the package's exported function of the same name (`src/slug.ts:164`–`168`),
+differing only in that the package guards a null input — and feeds its result to
+the package's `decodeTagSlug` at `:119`. So the decode itself is shared even there;
+it is the URL-to-slug step in that one file that is a copy. It agrees with the
+package today, which makes it a latent duplicate rather than a live defect, and
+exactly the kind of copy that drifts once the exported one changes.
+
+For **encoding** the library is the source for some producers and
 not others: the sticker QR and the POS receipt QR go through it, the printed tag
 QR on `apps/web` and the kiosk validate URL do not. One library does **not**
 decide the format of every code printed, and the next section says which producer
@@ -181,8 +196,10 @@ into a `/tag/[slug]` navigation (`A77`); and `pos-app` ships
 selectable symbologies — on a real device. [`test-flows.md`](test-flows.md) names
 that screen in its test-data preamble.
 
-`pos-app` gets **no** action or endpoint rows anywhere in this guide. It appears
-in this section and nowhere else.
+`pos-app` gets **no** action rows and **no** endpoint rows anywhere in this guide.
+It is named where it produces or reads a code, as above, but nothing in the
+registry, [`endpoints.md`](endpoints.md), [`permissions-by-role.md`](permissions-by-role.md),
+the perspective chapters or [`test-flows.md`](test-flows.md) covers it.
 
 ## How each app resolves a QR
 
@@ -296,19 +313,40 @@ an operator counts as a merchant is
 `isMerchantUser = Boolean(sessionMerchantId) && !sessionRefundPointId` at
 `apps/web/src/app/[lang]/(main)/(unirefund)/operations/scan-sticker/client.tsx:367`.
 
-**`web-app/apps/ssr`** — public by exception, and one route to a session.
+**`web-app/apps/ssr`** — public by exception, and **two** routes to a session.
 `PUBLIC_ROUTES=/,explore,tag,validate,barcode-scanner-demo,card-demo` in
 `apps/ssr/.env` exempts `tag` and `validate` from the authentication redirect,
 matched on the first path segment after `[lang]`
-(`packages/utils/auth/middleware.ts:89`), which is why `A77`–`A81` and
-`A84`–`A86` all work logged out. The deferred claim is the same `redirectTo`
-mechanism the middleware uses, built explicitly:
-`/{lang}/login?redirectTo={/{lang}/tag/{slug}}` at
+(`packages/utils/auth/middleware.ts:89`), which is why `A77`–`A81`, `A84` and
+`A86` work logged out.
+
+**`A85` does not, and the difference is the point of the row.** It is the probe
+that asks whether a session can still scan before the flow trusts it, so it
+requires both a token and a grant —
+`TravellerService.Travellers, TravellerService.Travellers.GetMyDocumentAffiliations`,
+triggered on a validate page load that already carries a session cookie. Its
+neighbours `A84` and `A86` are `— client only` and do work logged out. See the
+registry row for `A85` in [`actions-and-routes.md`](actions-and-routes.md).
+
+The deferred claim is the same `redirectTo` mechanism the middleware uses, built
+explicitly: `/{lang}/login?redirectTo={/{lang}/tag/{slug}}` at
 `apps/ssr/src/app/[lang]/(public)/tag/[slug]/page.tsx:147`, so the button hands
-`/login` a pointer back at the very slug the traveller was reading (`A83`). The
-claim path additionally requires a **completed KYC session** before any token is
-issued — `A87` then `A88` — and there is no route to a session in this app that
-skips it.
+`/login` a pointer back at the very slug the traveller was reading (`A83`).
+
+**What `/login` then offers is two paths, not one, and which one the traveller
+takes decides whether `A87` and `A88` run at all.**
+`apps/ssr/src/components/auth/login-form.tsx` renders a username-or-email field
+(`:107`) and a password field (`:135`) whose submit (`:147`) calls
+`signInServerApi` with the `redirectTo` it read off the query string (`:60`).
+Signing in with KYC is an **alternative** button beside it, a link to
+`/login/kyc` (`:157`). So a traveller who already has a password completes the
+deferred claim through the password form and never touches `A87` or `A88`. The
+KYC route is the one that requires a **completed KYC session** before any token is
+issued — `A87` then `A88` — and it is how a traveller with no account yet gets
+one; it is not the only way into a session in this app. Neither path takes a row of
+its own in the registry, because signing in is not QR-triggered: the QR-triggered
+half of the round trip is `A83`, which is why `/login` is listed under `A83`
+rather than under a login action.
 
 ## Indexes
 
@@ -443,18 +481,6 @@ An id's owning chapter is where its narration belongs, not a claim about which
 chapters currently mention it. Where the two disagree, `_verify/check.mjs`'s
 `perspectives` check is the arbiter: it requires every id to be narrated in at
 least one chapter, and in no more chapters than its `Actor` cell names.
-
-**Two rows in this table are ahead of what that check will currently allow, and
-saying so is better than a pointer that fails.** `check.mjs`'s `ACTOR_COUNT`
-recognises the exact cell `Anyone` (scoring it all four chapters) and otherwise
-counts only the party names it finds. `A01`'s cell is `Anyone, pre-login` and
-`A06`'s is `Anyone, including logged out`, so neither the literal match nor the
-name scan finds anything, and both fall to the function's floor of **one**
-chapter. `A34`–`A37` carry the bare cell and are unaffected. So the three
-chapters this table names for `A01` and `A06` — the same three
-[`permissions-by-role.md`](permissions-by-role.md) files them under — cannot all
-narrate them without the `perspectives` check failing. Which way that is settled,
-the narration or the `Actor` cell, is not this file's call; it is a Findings row.
 
 ### Route → action
 
