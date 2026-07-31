@@ -8,10 +8,16 @@ Conventions for the tables below. Action ids are permanent and never renumbered.
 The `Endpoint` and `Permission` columns are plain text — no backticks — because
 they are joined against `endpoints.md` and `permissions-by-role.md` by exact
 string. Every permission string was read off the `**Requires permissions:**` line
-in the generated SDK's doc comment for the named method; `— anonymous` means that
-line is absent and the endpoint needs no token at all. `— authenticated, no
-grant` means the method carries no permission line but the endpoint still
-requires a bearer token — see A22 and A24, the only two rows that use it.
+in the generated SDK's doc comment for the named method.
+
+A missing `**Requires permissions:**` line means no *permission* is required. It
+does **not** mean no *token* is required, so the two cases are marked apart:
+`— anonymous` for an endpoint callable with no token at all, and
+`— authenticated, no grant` for one that needs a bearer token but has no
+permission gate (A22 and A24). Declared status codes cannot separate them — every
+method in these SDKs lists 401 and 403 identically, including the genuinely
+anonymous ones — so the evidence is the method's own prose plus whether its client
+wrapper goes through `fetchRequest`, which is what attaches the token.
 
 ## Route → action
 
@@ -59,4 +65,4 @@ and every route in the guide has an action id to point at.
 | A35 | Turn a classification plus the active role into a destination | Anyone | Every classified scan | `super-app` | — | `super-app/src/utils/qr/scanDestination.ts:26` | — | — | — client only | — anonymous | 22, 24, 25 | T1–T3, M1–M3, R1–R3 |
 | A36 | Own the scanner's visibility and hand a read to the routing | Anyone | Every scan entry point, plus its manual entry fallback | `super-app` | — | `super-app/src/hooks/useQrScanLauncher.tsx:20` | — | — | — client only | — anonymous | 9, 23 | T1–T3, M1–M3, R1–R3 |
 | A37 | Perform a scan destination: navigate, refuse, or resolve first | Anyone | Every classified scan and every manual entry submit | `super-app` | — | `super-app/src/hooks/useScanRouting.ts:20` | — | — | — client only | — anonymous | 18, 22 | T1–T3, M1–M3, R1–R3 |
-| A38 | Defer a claim or validate intent through login and resume it | Traveller, logged out then authenticated | Login to claim, or the validate login gate | `super-app` | — | `super-app/src/store/pendingScan.ts:22`, `super-app/src/hooks/useResumePendingScan.tsx:31` | — | — | — client only | — anonymous | 4 | T1, T2, T3 |
+| A38 | Complete a claim deferred through login, once authenticated | Traveller, logged out then authenticated | Log in to claim, then the `(auth)` mount effect — no second press | `super-app` | `/tag-preview`, `/(auth)` | `super-app/src/store/pendingScan.ts:22`, `super-app/src/hooks/useResumePendingScan.tsx:31` | `postTagTravellerSelfAssign` — `super-app/src/actions/TagService/actions.ts:76` | `client.tag.postApiTagServiceTagTravellerSelfAssign` | POST /api/tag-service/tag/traveller-self-assign | TagService.Tags, TagService.Tags.TravellerSelfAssign | 4 | T2, T3 |
