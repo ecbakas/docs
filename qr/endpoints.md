@@ -88,9 +88,16 @@ directions. That has two consequences an editor has to know:
    they are read as endpoints that no registry action reaches. Lead those with the
    caller's need, the symptom, or anything else — see the existing ones for the
    pattern.
+3. `Permission` is **not** editable here. `check.mjs`'s `endpointPerms` compares
+   every row's `Permission` cell against the registry cell of every action the row
+   lists, character for character, and compares the row's endpoint against those
+   actions' `Endpoint` cells too. Change a permission in the registry and this file
+   fails until it is copied across; change it here alone and it fails immediately.
+   That is the join this file's opening claim — "the two cannot disagree" — rests
+   on, and until 2026-08-01 nothing enforced it.
 
-This is the most brittle invariant in the file, so it is written down here rather than
-left to the checker to discover.
+These are the most brittle invariants in the file, so they are written down here
+rather than left to the checker to discover.
 
 ## Endpoints
 
@@ -164,8 +171,23 @@ The endpoint tables, in order: [sticker lines](#tagservice--sticker-lines) ·
 
 | Endpoint | Permission | Intended caller | Also called by | Must not call | Instead use | Actions | Body contract |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| POST /api/export-validation-service/qr-evidence/{qrValue}/scan | — authenticated, no grant | Traveller, authenticated — "the traveller scans the kiosk's QR with their own authenticated device" | — | Merchant, Refund Point, Customs — *side effect*. The tags cleared are those of the **caller's own** `TravellerDocumentId` claim, and there is no permission gate to refuse a staff call, so nothing but the client stops one. Both staff apps refuse a validate QR before any call is made. | There is no staff equivalent: a validate QR is the traveller's own credential, and export validation from the staff side is not a QR-triggered action | A22, A24, A90, A92, A96 | `qrValue` in the path; body `{ latitude, longitude, flightTicket }`. The traveller is never in the body — the `TravellerDocumentId` claim decides whose tags are cleared. |
+| POST /api/export-validation-service/qr-evidence/{qrValue}/scan | — authenticated, no grant | Traveller, authenticated — "the traveller scans the kiosk's QR with their own authenticated device" | — | Merchant, Refund Point, Customs — *side effect*, and the worst one in this file: the tags cleared are those of the **caller's own** `TravellerDocumentId` claim, there is **no permission gate** to refuse a staff call, so a staff token succeeds and clears the staff member's own tags. Nothing but the client stops it, and both staff apps refuse a validate QR before any call is made. | `POST /api/export-validation-service/qr-evidence/{qrValue}/scan-with-traveller-info` — the **gated** agent-assisted path, for an operator scanning the kiosk QR on a traveller's behalf; or `POST /api/export-validation-service/self-check-evidence/kiosk-verify` when the traveller has no phone and no QR at all. Both are [contrast rows](#contrast-rows) below | A22, A24, A90, A92, A96 | `qrValue` in the path; body `{ latitude, longitude, flightTicket }`. The traveller is never in the body — the `TravellerDocumentId` claim decides whose tags are cleared. |
 | POST /api/export-validation-service/customs-validation-qr/generate | ExportValidationService.CustomsValidationQrs, ExportValidationService.CustomsValidationQrs.Generate | Customs — "CustomsId is resolved from the caller's ... claim (never accepted as input)" | — | Traveller, Merchant, Refund Point — *no grant*, and there would be nothing to pass: the customs office is the caller's claim, so no other party can generate a QR on its behalf. | There is no alternative: only a customs kiosk generates a validate QR, and every other party reads one rather than asking for one | A74, A75 | **No parameters at all.** CustomsId and UserId both come from claims. Fails unless the caller owns **exactly one** Kiosk device — zero or several is treated as an operational failure and logged critical. |
+
+**Two staff-side validation paths exist and no QR flow in this guide reaches
+either**, so both take [contrast rows](#contrast-rows) rather than full ones — but
+they are the answer to "how does a *staff member* export-validate?", and the
+traveller `scan` above is not. They are the **next two functions** in the same
+wrapper file as the traveller call:
+`web-app/packages/actions/unirefund/ExportValidationService/post-actions.ts` has
+`postQrEvidenceScanApi` at `:29` — the wrapper the registry cites for
+`A22`/`A24`/`A90`/`A92`/`A96` — then `postQrEvidenceScanWithTravellerInfoApi` at
+`:50` and `postSelfCheckEvidenceKioskVerifyApi` at `:73`. The first is also in the
+same generated SDK class as the traveller call, one method below it
+(`packages/saas/ExportValidationService/sdk.gen.ts:290` and `:321`); the second is
+in `SelfCheckEvidenceService`, the class after it. Both are permission-gated where
+the traveller call is not, which is the whole reason a staff caller must be sent to
+them: the traveller `scan` **will** succeed from a staff token.
 
 ### DeviceService and ReportService
 
@@ -186,6 +208,8 @@ instead. `— contrast` in `Actions` is what says so.
 | GET /api/crm-service/merchants | CRMService.Merchants, CRMService.Merchants.ViewList | Admin, back-office merchant management | — | Refund Point choosing a merchant for an unallocated sticker book — *no grant* expected on the back-office list, which also exposes external identifier, chain code, parent and HQ identity and lifecycle status. | `GET /api/tag-service/tag/merchants-for-creation`, which exists precisely so the counter picker does not read the back-office list | — contrast | The full back-office filter set, paged. |
 | PUT /api/tag-service/sticker-header/assign-merchant/{stickerLineNumber} | TagService.StickerHeaders, TagService.StickerHeaders.AssignMerchant | Sticker-stock administration | — | — | — | — contrast | `stickerLineNumber` in the path, `merchantId` in the query. No QR flow calls it, and none needs to: allocation happens on the first create against the book, [permanently](#sticker-allocation-permanent-on-first-use), so both scan flows send `merchantId` on the create instead. This endpoint, `PUT .../assign-merchant-from-claim/{stickerLineNumber}` and `PUT .../{stickerHeaderId}/assign-merchant/{merchantId}` are the **administrative** path for stock first-use-wins cannot reach — which is what "an allocation cannot be re-pointed" implies must exist somewhere. That they exist was once read here as evidence a create cannot allocate; that reading is **withdrawn**. All three carry no descriptive doc text, so none of them can be argued from prose either way. |
 | POST /api/tag-service/tag/{id}/merchant-individual-signature | TagService.Tags, TagService.Tags.AddMerchantIndividualSignature | Merchant attaching a signature to a tag that has none | — | — | — | — contrast | `id` in the path, the base64 image in the body; fails if the tag already has a merchant signature. It is the only way to attach one after creation — so the field missing from `CreateTagByStickerLineRequestDto` is repairable in principle. No QR flow calls it, so in practice nothing repairs it. |
+| POST /api/export-validation-service/qr-evidence/{qrValue}/scan-with-traveller-info | ExportValidationService.QrEvidence.ScanWithTravellerInfo | Customs or tax-free agent — "a customs / tax-free agent scans the kiosk QR on a non-tech traveller's behalf and enters the traveller's identifying info" | — | A traveller clearing their **own** tags — *wrong DTO*, and *no grant*. The body names whose tags to clear, so a traveller calling it would be asserting an identity rather than proving one; their own `TravellerDocumentId` claim already does that on the ungated path. | `POST /api/export-validation-service/qr-evidence/{qrValue}/scan` | — contrast | `qrValue` in the path. Body is `ScanWithTravellerInfoInput`: **required** `latitude`, `longitude` and `flightTicket`, plus the traveller — "either an existing `TravellerDocumentId` is supplied directly, or the document is upserted by document-number + nationality + name" (`travellerDocumentNumber`, `nationalityCountryCode3`, `firstName`, `lastName`, optional `expirationDate`, `birthDate`, `gender`). This is the row the traveller `scan` sends a staff caller to. **No QR flow reaches it**, so choosing it means writing its first call site — the wrapper exists (`web-app/packages/actions/unirefund/ExportValidationService/post-actions.ts:50`) and nothing invokes it. |
+| POST /api/export-validation-service/self-check-evidence/kiosk-verify | ExportValidationService.SelfCheckEvidence, ExportValidationService.SelfCheckEvidence.KioskVerify | Customs kiosk device — "the kiosk device (its own authenticated account, CustomsId from claims, exactly one DeviceType.Kiosk device) verifies a traveller with no phone/QR" | — | Any caller expecting export validation to have happened — *side effect*, in the direction of doing **less** than the name suggests: "self-check never creates ExportValidation rows; customs export-validates the greens at end of day through the normal export-validation path." A caller that treats a 200 here as a cleared tag is wrong. | `POST /api/export-validation-service/qr-evidence/{qrValue}/scan` for a traveller with a phone, or `.../scan-with-traveller-info` for an agent acting on their behalf — both create the evidence a validation reads | — contrast | No `qrValue` and **no geolocation** — "the kiosk device / CustomsId identifies the exit point". `flightTicket` is **mandatory**. The traveller is resolved from **exactly one** of `tagId` ("Tag id from a scanned tag/receipt QR; resolved to the owning traveller"), an existing `travellerDocumentId`, or travel-document fields that upsert the document — so this is a **second QR-driven staff path**, keyed on a tag QR rather than a validate QR. Requires the caller own exactly one `DeviceType.Kiosk` device. **No QR flow reaches it**; the wrapper is `postSelfCheckEvidenceKioskVerifyApi` (`post-actions.ts:73`), never invoked. |
 
 ### Draft or Issued: `status` and `traveller` are coupled
 
@@ -284,9 +308,11 @@ says otherwise. That is not a live dispute, and each of the four is checkable:
    `super-app/src/saas/TagService/sdk.gen.ts:414`, quoted in full above. It is the only
    source in either tree that spells the two cases out, which is what a later, fuller
    generation looks like.
-2. **`merchant-info` agrees, byte for byte, in both trees.** Identical at
-   `web-app/packages/saas/TagService/sdk.gen.ts:266` and
-   `super-app/src/saas/TagService/sdk.gen.ts:147`, and its `merchantId` parameter is
+2. **`merchant-info` agrees, word for word, in both trees.** The prose is
+   character-identical at `web-app/packages/saas/TagService/sdk.gen.ts:266` and
+   `super-app/src/saas/TagService/sdk.gen.ts:147` — only the comment block's
+   indentation differs, which is why this says *word* for word rather than byte
+   for byte. Its `merchantId` parameter is
    documented — in *both* — for the unallocated case. A parameter documented for a case
    is not compatible with that case being rejected outright.
 3. **`web-app`'s own client contradicts itself and `super-app`'s does not.** When one

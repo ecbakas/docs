@@ -19,17 +19,24 @@ checked id-for-id against this chapter's list by hand rather than assumed,
 and the two agree exactly. No disagreement to report between the registry and
 `permissions-by-role.md` on this id set.
 
-Most of these ids are shared code: 25 of the 41 also carry Merchant in their
-`Actor` cell and are already narrated in [`merchant.md`](merchant.md); six
-(A01, A04, A06, A33, A34–A37) also carry Traveller or `Anyone` and are
-narrated in [`traveller.md`](traveller.md) too. The registry's cap allows a
-row to appear once per party its `Actor` names, so a shared id narrated here
-is a **second or third** telling of the same code, from the Refund Point's own
-side of it — what a Refund Point operator specifically experiences, cited by
-`file:line` — not a restatement of `merchant.md`'s or `traveller.md`'s prose.
-Only 14 ids are Refund-Point-only: A14, A15, A20, A48, A51, A52, A56, A76, plus
-the six that are `— client only` and already fully covered by cross-link
-below. Permission strings live in
+Most of these ids are shared code, and the 41 split three ways exactly:
+
+- **25** carry Merchant in their `Actor` cell and are already narrated in
+  [`merchant.md`](merchant.md): A05, A10, A11, A12, A13, A21, A26, A29, A31,
+  A32, A39, A40, A41, A42, A43, A44, A45, A46, A53, A54, A57, A58, A59, A60,
+  A61.
+- **8** also carry Traveller or `Anyone` and are narrated in
+  [`traveller.md`](traveller.md) too: A01, A04, A06, A33, A34, A35, A36, A37.
+  (A04 and A33 name all three parties; the other six are `Anyone`.)
+- **8** are Refund-Point-only: A14, A15, A20, A48, A51, A52, A56 and A76. The
+  last of those is the disabled scan-into-a-refund row, `— client only`, and is
+  covered by cross-link below rather than narrated at length.
+
+The registry's cap allows a row to appear once per party its `Actor` names, so a
+shared id narrated here is a **second or third** telling of the same code, from
+the Refund Point's own side of it — what a Refund Point operator specifically
+experiences, cited by `file:line` — not a restatement of `merchant.md`'s or
+`traveller.md`'s prose. Permission strings live in
 [`permissions-by-role.md`](permissions-by-role.md), endpoint ownership and
 body contracts in [`endpoints.md`](endpoints.md), and the wire format and
 login/session mechanics in [`README.md`](README.md) — none of that is
@@ -324,7 +331,8 @@ permission with no role check in the function at all
 reaches the tenant detail exactly as a merchant would, and one lacking it is
 refused exactly the same way. The mismatch between `canViewTag`'s
 `ViewSummary` check and the detail page's own `TagService.Tags.Detail`
-requirement is a Finding merchant.md already routes to Task 13 — it applies
+requirement is [`F9`](README.md#findings), which
+[`merchant.md` § M3](merchant.md#m3--tag-qr) sets out in full — it applies
 here unchanged, not repeated.
 
 ### Assigning a traveller (`A10`/`A32`/`A59`)

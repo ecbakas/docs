@@ -61,13 +61,14 @@ it sits next to Customs's own rows in the registry table — each already has
 exactly the one chapter its `Actor` cell allows, and citing either id's own
 token here would push it over that cap.
 
-## The three cells this chapter would fill
+## The three cells this chapter fills
 
 `docs/QR.md`'s behaviour grid has three rows (Validate QR, Sticker QR, Tag QR)
-and three columns (Traveller, Merchant, Refund Point) today — **no Customs
-column exists yet**; that is Task 13's addition. What follows describes what a
-fourth column would say, on the same three axes the other three columns use.
-None of `C1`, `C2` or `C3` is cited as if it already exists in that grid.
+and **four** columns: Traveller, Merchant, Refund Point and Customs. The Customs
+column — `C1`, `C2`, `C3` — is written from this chapter and ships in
+[`../QR.md`](../QR.md); what follows is the reasoning behind each of its three
+cells, on the same three axes the other three columns use. Registry rows cite
+them in their `Cell` column like any other behaviour cell.
 
 **`C1` — Validate QR.** Meaningful, but inverted in kind from `T1`/`M1`/`R1`.
 Those three describe what happens when the named party *scans* a validate QR
@@ -77,8 +78,8 @@ no registry row has Customs reading one. Customs's relationship to it is
 upstream — it is the party that *manufactures* the QR every other party either
 scans or is refused for scanning, at the kiosk described under `#20` below.
 
-**`C2` — Sticker QR.** Genuinely meaningless, the same way the brief's own
-example puts it. Checked directly rather than assumed: no registry row names
+**`C2` — Sticker QR.** Genuinely meaningless, and the cell says so rather than
+sitting blank. Checked directly rather than assumed: no registry row names
 Customs as the actor for any sticker-line resolution, sticker-tag creation, or
 merchant-picker action — every such row on `super-app`'s `/sticker-tag` and
 `web-app/apps/web`'s `/operations/scan-sticker` carries only Merchant and/or
@@ -366,7 +367,7 @@ permission the registry's own `A69` row cites. A session holding the three
 `TagService` grants but not this one would open the sheet, scan tags into it
 successfully, and then find the Traveller tab's search silently failing
 (or, per the next finding, simply reach a component that never checked in the
-first place).
+first place). Recorded guide-wide as [`F12`](README.md#findings).
 
 **"Permission-gated inside an `isCustoms`-only render" is true on one of the
 two entry points and not the other — checked on both sides rather than
@@ -401,7 +402,8 @@ question this guide cannot answer (see
 [`permissions-by-role.md` § What this file does not
 know](permissions-by-role.md#what-this-file-does-not-know)); what is
 confirmed here is that the **frontend** does not pre-check before offering
-the control or firing the request, on either component.
+the control or firing the request, on either component. Recorded guide-wide,
+with the third posture below, as [`F2`](README.md#findings).
 
 **A third, separate traveller-search control — `A59`'s own popover — gates on
 the wrong permission, verified against the SDK's own doc comment rather than
@@ -424,8 +426,8 @@ different traveller-search entry points on three different permission
 postures, not one bug appearing three times.
 
 **`A73`'s own precondition is looser than what `A74`/`A75`'s call actually
-requires — found independently while reading the kiosk page, not carried
-over from the brief.** `page.tsx:48` treats the office as kiosk-ready once
+requires — read off the kiosk page and the endpoint's own doc comment here,
+not taken from another file.** `page.tsx:48` treats the office as kiosk-ready once
 `totalCount > 0` — one *or more* Kiosk devices. But the generate endpoint's
 own doc comment (`ExportValidationService/sdk.gen.ts:33`) states "the caller
 must own **exactly one** `DeviceType.Kiosk` device — 0 or more raises a
@@ -434,7 +436,7 @@ would pass `page.tsx`'s own check, skip `NoKioskView`, and only then hit a
 generic `ErrorComponent` failure from the generate call itself
 (`page.tsx:56`–`63`) — the friendlier, specific registration prompt is shown
 only for the zero case, not for the over-one case the backend equally
-rejects.
+rejects. Recorded guide-wide as [`F18`](README.md#findings).
 
 ## Every claim above, checked
 

@@ -26,15 +26,31 @@ A missing SDK annotation means no *permission* is required — it does **not** m
 *token* is required. That distinction is why the second and third markers both
 exist and are kept apart below, rather than collapsed into one "no permission" row.
 
+### If you are editing this file, read this first
+
+`docs/qr/_verify/check.mjs`'s `rolePerms` merges **every** table whose first header
+cell is `Permission` into one logical table and joins it against the registry:
+for each action id in a row's `Actions` cell, the row's `Permission` and `Endpoints`
+cells must be the registry's, character for character. So:
+
+- **`Permission` and `Endpoints` are not editable here.** Fix the registry and copy
+  it across; editing either here alone fails the check.
+- **No other table in this file may lead with `Permission`.** Its rows would be
+  absorbed into this join and read as permission claims about whatever action ids
+  they happen to mention. Lead any other table with something else.
+
+Until 2026-08-01 only the *ids* were joined, so a wrong permission string beside a
+right id passed silently — which is the one thing this file exists to get right.
+
 **On `Actor: Anyone` and `Actor: Admin`.** The four sections below are Traveller,
 Merchant, Refund Point and Customs, plus a fifth for Admin — a real actor in the
 registry with no perspective chapter of its own elsewhere in this guide, given a
-section here so its actions are not orphaned. Five `super-app` rows carry
+section here so its actions are not orphaned. Six `super-app` rows carry
 `Actor: Anyone` or `Actor: Anyone, ...` rather than one named role: A01, A06, A34,
 A35, A36 and A37. `super-app` has no Customs or Admin screens anywhere in the
-registry, so on those five rows "every party" cashes out to the three roles that
+registry, so on those six rows "every party" cashes out to the three roles that
 can actually reach a `super-app` route — Traveller, Merchant and Refund Point — and
-that is where each of the five is filed below, once per role. This is not an
+that is where each of the six is filed below, once per role. This is not an
 editorial merge; it is what `Actor: Anyone` denotes once restricted to the parties
 capable of reaching the route at all.
 
@@ -147,13 +163,29 @@ detail read, open to every staff role that has a reason to look at a tag.
 
 The action reaching this page, A57, requires `TagService.Tags, TagService.Tags.ViewList`
 at the API layer — the row above in each of Merchant's, Refund Point's, Customs's
-and Admin's tables. The **page itself** carries an additional, separate gate:
-`TagService.Tags.View`, an identifier that appears in **none** of the registry's 52
-`TagService` annotations. It is a real permission check (on the page route, not on
-any endpoint this guide's registry reaches), and it is already routed as a Finding
-to Task 13; it is recorded here, where a reader looking at Merchant, Refund Point,
-Customs and Admin page access would otherwise expect to find it, so as not to
-contradict that Finding by omission.
+and Admin's tables. Two further permissions decide whether an operator sees the
+page at all, and **neither is a check on the page**: the page file carries no
+`isActionGranted` call and no policy guard of any kind, read end to end. The gate
+is the **nav entry**, `web-app/apps/web/src/components/sidebar-layout/data.ts:669`–`671`,
+which lists `TagService.Tags`, `TagService.Tags.View` and
+`TagService.Tags.ViewSummary` — and `isActionGranted` requires **all** of them.
+
+- **`TagService.Tags.View`** appears in **none** of the registry's 52 `TagService`
+  annotations. Granting it opens a menu entry and authorises no read. Recorded as
+  [`F7`](README.md#findings).
+- **`TagService.Tags.ViewSummary`** is *justified* on that nav entry, and this file
+  has no row for it only because no registry action reaches its endpoint: the page
+  calls `getTagSummaryApi` → `GET /api/tag-service/tag/summary` at
+  `tax-free-tags/page.tsx:133`, outside any QR flow. It is the same grant `A46`'s
+  client-side gate reuses to guard a *detail* page — which is
+  [`F9`](README.md#findings), and a different fault from this one.
+
+What `tax-free-tags/page.tsx:124` and `:139` *do* carry is a `missingPolicies` prop
+on an `<ErrorComponent>`, rendered only **after** a request has already failed and
+drawn as destructive badges — a hint naming the likely grant, not a gate. Both are
+noted here, where a reader looking at Merchant, Refund Point, Customs and Admin page
+access would otherwise expect to find them, so as not to contradict either Finding
+by omission.
 
 ## Anonymous — no permission, and sometimes no token at all
 
@@ -215,9 +247,15 @@ preference — which role the app should open to next time — and it is **not**
 authoritative for anything a permission or an endpoint call depends on. The real
 role is resolved after login in `super-app/src/providers/SessionProvider.tsx`,
 from the user's CRM affiliations, via `resolveRoleFromAffiliations()`
-(`SessionProvider.tsx:99`, called from the login path at `SessionProvider.tsx:184`);
-travellers are fast-pathed directly from the sign-in route rather than going
-through affiliation resolution. Once resolved, `grantedPolicies` arrives on the
+(`SessionProvider.tsx:99`, called from the login path at `SessionProvider.tsx:184`).
+**Only the Didit/KYC sign-in is fast-pathed past it.** `getUserData` takes
+`opts?.role ?? (await resolveRoleFromAffiliations())` (`:184`), and
+`signInWithDidit` (`:258`) is the only caller that passes
+`{ role: "traveller" }`; the e-mail/password `signIn` (`:245`) passes no `opts`,
+and that is the path `TravellerLoginScreen.tsx:49` takes — so a password
+traveller **does** go through affiliation resolution. The same account therefore
+resolves its role by two different mechanisms depending on which sign-in route
+it used. Once resolved, `grantedPolicies` arrives on the
 session as `Record<Policies, boolean>`
 (`super-app/src/actions/AccountService/types.ts:3`, `type Policies = keyof typeof
 policies`), where `policies` is generated from
@@ -316,4 +354,4 @@ One further absence, for completeness: `policies.json` also lists
 any of the three generated clients, so it reaches no endpoint, requires no action
 in any table above, and is not a gap in this file's coverage — see
 `actions-and-routes.md`'s notes and `endpoints.md`'s cross-tenant lookup row for
-the fuller story. It is already routed as a Finding to Task 13.
+the fuller story. It is recorded as [`F13`](README.md#findings).

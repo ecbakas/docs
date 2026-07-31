@@ -54,26 +54,27 @@ const PARTY_CHAPTER = new Map([
  * the registry uses for the shared scanner, which all four chapters legitimately
  * describe.
  */
-const ACTOR_COUNT = (cell) => {
+const ACTOR_CHAPTERS = (cell) => {
   // "Anyone" means every party, and it is frequently qualified — the registry
   // carries "Anyone, pre-login" and "Anyone, including logged out". Matching the
-  // bare word only was a bug: those two cells fell through to the party count,
-  // scored zero, hit the floor of one chapter, and would have made A01 and A06
-  // unnarratable in the three chapters permissions-by-role.md files them under.
-  // Found by Task 7 before Tasks 8-11 could trip over it.
-  if (/^anyone\b/i.test(cell.trim())) return PERSPECTIVES.length;
-  const named = cell
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter((s) => PARTY_CHAPTER.has(s));
-  return named.length;
+  // bare word only was a bug: those two cells fell through to the named-party
+  // list, came out empty, and would have made A01 and A06 unnarratable in the
+  // three chapters permissions-by-role.md files them under.
+  if (/^anyone\b/i.test(cell.trim())) return new Set(PERSPECTIVES);
+  return new Set(
+    cell
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => PARTY_CHAPTER.has(s))
+      .map((s) => PARTY_CHAPTER.get(s))
+  );
 };
 /**
  * Action ids are `A` plus two or three digits — `A01` through `A999`.
  *
  * Two digits were the original rule, and it silently became a design constraint:
- * Task 4 merged three row pairs to land inside `A99` rather than exceed it, which
- * is the tooling deciding the deliverable's granularity. Worse, `A100` would have
+ * three row pairs were merged to land inside `A99` rather than exceed it — the
+ * tooling deciding the deliverable's granularity. Worse, `A100` would have
  * *partly* matched `\bA\d{2}\b` and gone half-visible to the cross-file joins.
  * Both patterns take 2-3 digits, greedily, so `A100` reads as one id and not as
  * `A10` followed by a stray `0`.
@@ -122,16 +123,44 @@ checks.files = () => {
   }
 };
 
+/**
+ * Every file carries a `Verified against:` stamp, and all nine carry the **same**
+ * one. Nine files derived from one pair of revisions cannot honestly be stamped
+ * against two: a single file left on an older sha is exactly how a reader ends up
+ * trusting a citation that has since moved. Presence alone was checked before
+ * this, so one file's sha could drift and the run still printed OK.
+ */
 checks.stamps = () => {
+  const seen = new Map();
   for (const f of GUIDE) {
-    if (!read(f).includes("Verified against:")) {
+    const line = read(f)
+      .split(/\r?\n/)
+      .find((l) => l.includes("Verified against:"));
+    if (!line) {
       fail(`${f}: no "Verified against:" line`);
+      continue;
+    }
+    seen.set(f, line.trim());
+  }
+  const stamps = new Set(seen.values());
+  if (stamps.size > 1) {
+    const [majority] = [...stamps].sort(
+      (a, b) =>
+        [...seen.values()].filter((v) => v === b).length -
+        [...seen.values()].filter((v) => v === a).length
+    );
+    for (const [f, line] of seen) {
+      if (line !== majority) {
+        fail(`${f}: stamp "${line}" disagrees with the other files' "${majority}"`);
+      }
     }
   }
 };
 
 checks.placeholders = () => {
-  // "<sha>" and "<title>" catch a Task 1 stub whose template was never filled in.
+  // "<sha>" and "<title>" catch a stub whose stamp or heading template was
+  // scaffolded and never filled in — the two placeholders this guide's own
+  // templates actually used.
   const banned = ["TBD", "TODO", "FIXME", "fill in later", "verify this later", "<sha>", "<title>"];
   for (const f of GUIDE) {
     read(f)
@@ -226,13 +255,34 @@ checks.perspectives = () => {
     }
     // A single-actor action has exactly one home chapter. A cross-role action —
     // the shared scanner, manual entry, traveller search — legitimately belongs
-    // to each party that performs it, capped at how many the registry names.
-    const parties = ACTOR_COUNT(byId.get(id)?.actor ?? "") || 1;
-    if (where.length > parties) {
-      fail(
-        `${id}: narrated in ${where.length} chapters (${where.join(", ")}) but its Actor names ${parties} ` +
-          `— narrate it only where the registry says it applies`
-      );
+    // to each party that performs it.
+    //
+    // This checks *which* chapters, not how many. Counting was the earlier rule
+    // and it was too weak by exactly the interesting amount: a Merchant-only row
+    // narrated in traveller.md and nowhere else scored one chapter against a cap
+    // of one and passed. PARTY_CHAPTER already holds the map, so naming the
+    // chapters costs nothing over counting them.
+    const actor = byId.get(id)?.actor ?? "";
+    const allowed = ACTOR_CHAPTERS(actor);
+    if (allowed.size === 0) {
+      // An Actor naming no party that has a chapter of its own — "Admin" alone
+      // would be one. There is no chapter it belongs to *by name*, so the only
+      // rule left is the one every row has: narrated, and in one place.
+      if (where.length > 1) {
+        fail(
+          `${id}: narrated in ${where.length} chapters (${where.join(", ")}) but its Actor ` +
+            `"${actor}" names no party with a chapter — narrate it once`
+        );
+      }
+      continue;
+    }
+    for (const f of where) {
+      if (!allowed.has(f)) {
+        fail(
+          `${id}: narrated in ${f}, but its Actor "${actor}" names only ` +
+            `${[...allowed].join(", ")} — narrate it only where the registry says it applies`
+        );
+      }
     }
   }
 };
@@ -294,11 +344,109 @@ checks.endpoints = () => {
   }
 };
 
+/**
+ * The central promise the guide makes about itself: endpoints.md's `Endpoint` and
+ * `Permission` cells are **copied** from the registry, "so the two cannot
+ * disagree" (endpoints.md § intro, README § The nine files). Membership joins do
+ * not check that. An action listed under the wrong endpoint row still appears in
+ * `covered`, and both endpoints still appear in `documented`, so the swap that
+ * matters most in this file — `CreateByStickerLine` for `Create` on the
+ * by-sticker-line row — was invisible.
+ */
+checks.endpointPerms = () => {
+  const reg = loadRegistry();
+  const { head, rows } = table(read("endpoints.md"), "Endpoint");
+  if (!head) return; // checks.endpoints already reports the missing table
+  const iPerm = head.indexOf("Permission");
+  const iActions = head.indexOf("Actions");
+  if (iPerm < 0 || iActions < 0) return;
+
+  for (const cells of rows) {
+    const ep = cells[0];
+    const actions = cells[iActions] ?? "";
+    if (actions === CONTRAST) continue;
+    const perm = cells[iPerm] ?? "";
+    for (const id of actions.match(ID_ANYWHERE) ?? []) {
+      const row = reg.byId.get(id);
+      if (!row) continue; // checks.endpoints already reports an unknown id
+      if (row.endpoint !== ep) {
+        fail(
+          `endpoints.md: "${ep}" lists ${id}, whose registry Endpoint is "${row.endpoint}" ` +
+            `— an action may only be listed under the endpoint it calls`
+        );
+      }
+      if (row.perm !== perm) {
+        fail(
+          `endpoints.md: "${ep}" says Permission "${perm}" but ${id}'s registry cell is ` +
+            `"${row.perm}" — this column is copied from the registry, not restated`
+        );
+      }
+    }
+  }
+};
+
 checks.permissions = () => {
   const { ids } = loadRegistry();
   const found = new Set(read("permissions-by-role.md").match(ID_ANYWHERE) ?? []);
   for (const id of ids) if (!found.has(id)) fail(`${id}: missing from permissions-by-role.md`);
   for (const id of found) if (!ids.has(id)) fail(`permissions-by-role.md: mentions ${id}, no registry row`);
+};
+
+/**
+ * Same promise, other derived file: permissions-by-role.md states that its
+ * `Permission` and `Endpoint` cells "are copied verbatim from the registry's
+ * `Permission` and `Endpoint` columns". checks.permissions only proved the *ids*
+ * were all present, so a wrong permission string beside a right id printed OK.
+ *
+ * Like endpoints.md, this file must keep every role table leading with
+ * `Permission` and must not lead any other table with it, or the rows merge into
+ * this join and are read as permission claims.
+ */
+checks.rolePerms = () => {
+  const reg = loadRegistry();
+  const { head, rows } = table(read("permissions-by-role.md"), "Permission");
+  if (!head) {
+    fail("permissions-by-role.md: no table whose first header cell is `Permission`");
+    return;
+  }
+  const iEnd = head.indexOf("Endpoints");
+  const iActions = head.indexOf("Actions");
+  for (const [name, i] of [["Actions", iActions], ["Endpoints", iEnd]]) {
+    if (i < 0) {
+      fail(`permissions-by-role.md: table has no \`${name}\` column`);
+      return;
+    }
+  }
+
+  for (const cells of rows) {
+    const perm = cells[0] ?? "";
+    const endpoints = cells[iEnd] ?? "";
+    for (const id of (cells[iActions] ?? "").match(ID_ANYWHERE) ?? []) {
+      const row = reg.byId.get(id);
+      if (!row) continue; // checks.permissions already reports an unknown id
+      if (row.perm !== perm) {
+        fail(
+          `permissions-by-role.md: ${id} filed under Permission "${perm}" but its registry ` +
+            `cell is "${row.perm}" — this column is copied verbatim from the registry`
+        );
+      }
+      // A `— client only` row has no endpoint to name, and this file spells that
+      // out in prose rather than with the registry's bare marker.
+      if (row.endpoint === CLIENT_ONLY) {
+        if (!endpoints.startsWith(CLIENT_ONLY)) {
+          fail(
+            `permissions-by-role.md: ${id} is "${CLIENT_ONLY}" in the registry but its row's ` +
+              `Endpoints cell reads "${endpoints}"`
+          );
+        }
+      } else if (row.endpoint !== endpoints) {
+        fail(
+          `permissions-by-role.md: ${id} filed under Endpoint "${endpoints}" but its registry ` +
+            `cell is "${row.endpoint}"`
+        );
+      }
+    }
+  }
 };
 
 checks.testflows = () => {
@@ -308,11 +456,52 @@ checks.testflows = () => {
     // Two digits here was a bug, missed when ID_RE and ID_ANYWHERE were widened
     // to A\d{2,3}: `TF-A100` matched neither the heading pattern (\d{2} then \b
     // fails between the two zeros) nor the extraction (which would have yielded
-    // "A10"). Found by Task 12, whose last three flows are A100-A102.
+    // "A10"). It surfaced only once flows past A99 existed — A100, A101, A102.
     (md.match(/^#{2,4}\s+TF-A\d{2,3}\b/gm) ?? []).map((h) => h.match(/A\d{2,3}/)[0])
   );
   for (const id of ids) if (!flows.has(id)) fail(`${id}: no "TF-${id}" heading in test-flows.md`);
   for (const id of flows) if (!ids.has(id)) fail(`test-flows.md: TF-${id} has no registry row`);
+};
+
+/**
+ * A `TF-` heading existing is not a flow. This file's own preamble promises that
+ * "every gate a flow depends on carries an `EXPECT` so a tester can tell a pass
+ * from a fail without guessing", and every flow as written carries a
+ * `**Negative cases**` section. checks.testflows counted headings only, so a flow
+ * reduced to a single unverifiable step still printed OK — which is the shape a
+ * flow decays into when it is trimmed rather than rewritten.
+ */
+const NEGATIVE = "**Negative cases**";
+checks.flowRigour = () => {
+  const lines = read("test-flows.md").split(/\r?\n/);
+  let id = null;
+  let body = [];
+  const finish = () => {
+    if (!id) return;
+    const text = body.join("\n");
+    if (!/\bEXPECT\b/.test(text)) {
+      fail(`test-flows.md: TF-${id} has no EXPECT — a step with no observable outcome is not a test`);
+    }
+    const at = body.findIndex((l) => l.trim().startsWith(NEGATIVE));
+    if (at < 0) {
+      fail(`test-flows.md: TF-${id} has no "${NEGATIVE}" section`);
+    } else if (!body.slice(at + 1).some((l) => /^\s*-\s+\S/.test(l))) {
+      fail(`test-flows.md: TF-${id}'s "${NEGATIVE}" section has no cases in it`);
+    }
+    id = null;
+    body = [];
+  };
+  for (const line of lines) {
+    const h = /^#{2,4}\s+TF-(A\d{2,3})\b/.exec(line);
+    if (h) {
+      finish();
+      id = h[1];
+      continue;
+    }
+    if (id && /^#{1,6}\s/.test(line)) finish();
+    else if (id) body.push(line);
+  }
+  finish();
 };
 
 function report() {

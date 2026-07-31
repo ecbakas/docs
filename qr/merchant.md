@@ -199,11 +199,19 @@ not a hedge:
   shows on both unallocated branches: it is equally true when the merchant is
   themselves"
   (`super-app/src/screens/staff/StickerTag/_components/MerchantBlock.tsx:12`–`13`),
-  and renders `MobileApp.Qr.StickerTag.AllocationWarning` whenever the branch
-  is not `"allocated"` (`MerchantBlock.tsx:57`–`70`) — including the `"self"`
-  branch, a merchant booking against their own unallocated line
-  (`stickerTag.logic.ts:16`–`18`: "creating this tag allocates it to them
-  permanently — the warning stays").
+  and renders `MobileApp.Qr.StickerTag.AllocationWarning` on any branch that is
+  not `"allocated"` — including the `"self"` branch, a merchant booking against
+  their own unallocated line (`stickerTag.logic.ts:16`–`18`: "creating this tag
+  allocates it to them permanently — the warning stays"). **The condition has a
+  second half, and it is the interesting one:** `MerchantBlock.tsx:65` also
+  requires `merchant &&`, so on the `"picker"` branch with no store chosen yet
+  the warning is withheld. Its own comment says why (`:62`–`64`): "nothing is
+  being assigned yet until a store is chosen — warning about 'this store' before
+  there is one reads as a contradiction of the 'Select the store' heading above
+  it." (The fourth branch, `"blocked"`, returns a no-pick-permission message at
+  `:32`–`35` and never reaches the warning at all.) So the warning tracks *the
+  store the create would commit the book to*, not merely the absence of an
+  allocation — which is exactly what makes it true rather than alarmist.
 - `web-app`'s `buildMerchantProps` shows the identical warning for
   `isMerchantUser` on an unallocated line, under the comment "issuing this tag
   allocates it to them permanently, so the warning stays"
@@ -356,7 +364,7 @@ No registry row reaches that summary endpoint at all — this QR flow has
 nothing to do with it. An operator holding `Detail` but not `ViewSummary`
 would be refused a tag they are otherwise entitled to open; the reverse holder
 would pass this client gate and then meet the server's own `Detail` check.
-This is a new Finding, routed to Task 13 below — it is not something this
+This is recorded as [`F9`](README.md#findings) — it is not something this
 chapter resolves.
 
 ### Assigning a traveller (`A10`/`A32`/`A59`)

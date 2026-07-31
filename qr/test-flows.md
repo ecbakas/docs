@@ -2131,108 +2131,108 @@ table.
 
 | ID | Flow |
 | --- | --- |
-| A01 | [Scan a QR before choosing a role](#tf-a01-scan-a-qr-before-choosing-a-role) |
-| A02 | [Scan a QR from the traveller login screen](#tf-a02-scan-a-qr-from-the-traveller-login-screen) |
-| A03 | [Look up a tag by typed tag number and passport number](#tf-a03-look-up-a-tag-by-typed-tag-number-and-passport-number) |
-| A04 | [Look up the tag issued on a typed sticker line number](#tf-a04-look-up-the-tag-issued-on-a-typed-sticker-line-number) |
-| A05 | [Resolve a bare tag number to its tag id](#tf-a05-resolve-a-bare-tag-number-to-its-tag-id) |
-| A06 | [Read a scanned tag's public detail by tag id](#tf-a06-read-a-scanned-tags-public-detail-by-tag-id) |
-| A07 | [Read a tag's public detail by tag number and traveller document](#tf-a07-read-a-tags-public-detail-by-tag-number-and-traveller-document) |
-| A08 | [Read the tag issued on a scanned sticker line](#tf-a08-read-the-tag-issued-on-a-scanned-sticker-line) |
-| A09 | [Claim an unclaimed draft tag](#tf-a09-claim-an-unclaimed-draft-tag) |
-| A10 | [Assign a traveller to a scanned draft tag](#tf-a10-assign-a-traveller-to-a-scanned-draft-tag) |
-| A11 | [Resolve a traveller by document number to attach or assign](#tf-a11-resolve-a-traveller-by-document-number-to-attach-or-assign) |
-| A12 | [Resolve a scanned sticker line](#tf-a12-resolve-a-scanned-sticker-line) |
-| A13 | [A used sticker opens its tag instead of a create form](#tf-a13-a-used-sticker-opens-its-tag-instead-of-a-create-form) |
-| A14 | [Resolve the merchant an allocated sticker book is booked to](#tf-a14-resolve-the-merchant-an-allocated-sticker-book-is-booked-to) |
-| A15 | [Pick a merchant for an unallocated sticker book](#tf-a15-pick-a-merchant-for-an-unallocated-sticker-book) |
-| A16 | [Load own product groups to price a sticker tag](#tf-a16-load-own-product-groups-to-price-a-sticker-tag) |
-| A17 | [Load own VAT identity for the sticker create call](#tf-a17-load-own-vat-identity-for-the-sticker-create-call) |
-| A18 | [Refuse a sticker book allocated to another merchant](#tf-a18-refuse-a-sticker-book-allocated-to-another-merchant) |
-| A19 | [Create a tag against a scanned sticker as the merchant](#tf-a19-create-a-tag-against-a-scanned-sticker-as-the-merchant) |
-| A20 | [Create a tag against a scanned sticker on a merchant's behalf](#tf-a20-create-a-tag-against-a-scanned-sticker-on-a-merchants-behalf) |
-| A21 | [Capture the merchant and traveller signatures on a sticker tag](#tf-a21-capture-the-merchant-and-traveller-signatures-on-a-sticker-tag) |
-| A22 | [Run the airport self-validation scan](#tf-a22-run-the-airport-self-validation-scan) |
-| A23 | [Scan the boarding pass for the flight ticket](#tf-a23-scan-the-boarding-pass-for-the-flight-ticket) |
-| A24 | [Rescan an expired validate QR mid-flow](#tf-a24-rescan-an-expired-validate-qr-mid-flow) |
-| A25 | [Claim a further tag from the validation results](#tf-a25-claim-a-further-tag-from-the-validation-results) |
-| A26 | [Refuse a validate QR scanned by staff](#tf-a26-refuse-a-validate-qr-scanned-by-staff) |
-| A27 | [Create a tag from the merchant Create Tag screen](#tf-a27-create-a-tag-from-the-merchant-create-tag-screen) |
-| A28 | [List own tags across tenants](#tf-a28-list-own-tags-across-tenants) |
-| A29 | [List the tenant's tags](#tf-a29-list-the-tenants-tags) |
-| A30 | [Open the detail of a tag the caller owns](#tf-a30-open-the-detail-of-a-tag-the-caller-owns) |
-| A31 | [Open the tenant detail of a tag by id](#tf-a31-open-the-tenant-detail-of-a-tag-by-id) |
-| A32 | [Assign a traveller to a draft tag from the tag detail](#tf-a32-assign-a-traveller-to-a-draft-tag-from-the-tag-detail) |
-| A33 | [Scan a QR from the authenticated app](#tf-a33-scan-a-qr-from-the-authenticated-app) |
-| A34 | [Classify a raw scan as tag, sticker, validate or unknown](#tf-a34-classify-a-raw-scan-as-tag-sticker-validate-or-unknown) |
-| A35 | [Turn a classification plus the active role into a destination](#tf-a35-turn-a-classification-plus-the-active-role-into-a-destination) |
-| A36 | [Own the scanner's visibility and hand a read to the routing](#tf-a36-own-the-scanners-visibility-and-hand-a-read-to-the-routing) |
-| A37 | [Perform a scan destination: navigate, refuse, or resolve first](#tf-a37-perform-a-scan-destination-navigate-refuse-or-resolve-first) |
-| A38 | [Complete a claim deferred through login, once authenticated](#tf-a38-complete-a-claim-deferred-through-login-once-authenticated) |
-| A39 | [Open the camera and scan a code on the sticker page](#tf-a39-open-the-camera-and-scan-a-code-on-the-sticker-page) |
-| A40 | [Read a sticker line number or tag code from a wedge scanner](#tf-a40-read-a-sticker-line-number-or-tag-code-from-a-wedge-scanner) |
-| A41 | [Classify a scan as sticker, tag, validate or nothing](#tf-a41-classify-a-scan-as-sticker-tag-validate-or-nothing) |
-| A42 | [Refuse a traveller validate QR scanned by staff](#tf-a42-refuse-a-traveller-validate-qr-scanned-by-staff) |
-| A43 | [Resolve a scanned sticker line](#tf-a43-resolve-a-scanned-sticker-line) |
-| A44 | [A used sticker opens its tag instead of the create form](#tf-a44-a-used-sticker-opens-its-tag-instead-of-the-create-form) |
-| A45 | [Resolve a tag id from a scanned tag number](#tf-a45-resolve-a-tag-id-from-a-scanned-tag-number) |
-| A46 | [Refuse to open a scanned tag without the tag-view grant](#tf-a46-refuse-to-open-a-scanned-tag-without-the-tag-view-grant) |
-| A47 | [Refuse a sticker book allocated to another merchant](#tf-a47-refuse-a-sticker-book-allocated-to-another-merchant) |
-| A48 | [Resolve the merchant a scanned sticker book is booked to](#tf-a48-resolve-the-merchant-a-scanned-sticker-book-is-booked-to) |
-| A49 | [Load own product groups to price a scanned sticker tag](#tf-a49-load-own-product-groups-to-price-a-scanned-sticker-tag) |
-| A50 | [Load own merchant identity for the sticker create call](#tf-a50-load-own-merchant-identity-for-the-sticker-create-call) |
-| A51 | [Pick a merchant for an unallocated sticker book](#tf-a51-pick-a-merchant-for-an-unallocated-sticker-book) |
-| A52 | [Preview the picked merchant on the unallocated sticker line](#tf-a52-preview-the-picked-merchant-on-the-unallocated-sticker-line) |
-| A53 | [Attach a traveller to a scanned sticker tag by document search](#tf-a53-attach-a-traveller-to-a-scanned-sticker-tag-by-document-search) |
-| A54 | [Capture the merchant and traveller signatures on a scanned sticker tag](#tf-a54-capture-the-merchant-and-traveller-signatures-on-a-scanned-sticker-tag) |
-| A55 | [Create a tag against a scanned sticker as the merchant](#tf-a55-create-a-tag-against-a-scanned-sticker-as-the-merchant) |
-| A56 | [Create a tag against a scanned sticker on a merchant's behalf](#tf-a56-create-a-tag-against-a-scanned-sticker-on-a-merchants-behalf) |
-| A57 | [List the tenant's tags a scan-created tag lands in](#tf-a57-list-the-tenants-tags-a-scan-created-tag-lands-in) |
-| A58 | [Open the tag a scanned QR resolved to](#tf-a58-open-the-tag-a-scanned-qr-resolved-to) |
-| A59 | [Assign a traveller to a draft tag from the tag detail](#tf-a59-assign-a-traveller-to-a-draft-tag-from-the-tag-detail) |
-| A60 | [Render the tag's own QR onto the printable tax-free form](#tf-a60-render-the-tags-own-qr-onto-the-printable-tax-free-form) |
-| A61 | [Print the tag through the report service](#tf-a61-print-the-tag-through-the-report-service) |
-| A62 | [Create a tag from the new-tag form, with no sticker scanned](#tf-a62-create-a-tag-from-the-new-tag-form-with-no-sticker-scanned) |
-| A63 | [Open the bulk scan-and-assign sheet](#tf-a63-open-the-bulk-scan-and-assign-sheet) |
-| A64 | [Scan draft tag QRs into the bulk basket with the camera](#tf-a64-scan-draft-tag-qrs-into-the-bulk-basket-with-the-camera) |
-| A65 | [Read a draft tag code into the bulk basket from a wedge scanner](#tf-a65-read-a-draft-tag-code-into-the-bulk-basket-from-a-wedge-scanner) |
-| A66 | [Type a tag number into the bulk basket](#tf-a66-type-a-tag-number-into-the-bulk-basket) |
-| A67 | [Look up each scanned tag before it enters the bulk basket](#tf-a67-look-up-each-scanned-tag-before-it-enters-the-bulk-basket) |
-| A68 | [Refuse a scanned tag that is not an unassigned draft](#tf-a68-refuse-a-scanned-tag-that-is-not-an-unassigned-draft) |
-| A69 | [Resolve the traveller the bulk basket will be assigned to](#tf-a69-resolve-the-traveller-the-bulk-basket-will-be-assigned-to) |
-| A70 | [Assign every tag in the bulk basket to that traveller](#tf-a70-assign-every-tag-in-the-bulk-basket-to-that-traveller) |
-| A71 | [Resolve a traveller from a scanned passport at the customs desk](#tf-a71-resolve-a-traveller-from-a-scanned-passport-at-the-customs-desk) |
-| A72 | [Load the tags of the traveller under customs review](#tf-a72-load-the-tags-of-the-traveller-under-customs-review) |
-| A73 | [Require a registered kiosk device before a validate QR is shown](#tf-a73-require-a-registered-kiosk-device-before-a-validate-qr-is-shown) |
-| A74 | [Generate the rolling customs validate QR](#tf-a74-generate-the-rolling-customs-validate-qr) |
-| A75 | [Roll the displayed validate QR every thirty seconds](#tf-a75-roll-the-displayed-validate-qr-every-thirty-seconds) |
-| A76 | [Scan tags into a refund — disabled](#tf-a76-scan-tags-into-a-refund-disabled) |
-| A77 | [Look up a tag by typed tag number and passport number](#tf-a77-look-up-a-tag-by-typed-tag-number-and-passport-number) |
-| A78 | [Read the tag issued on a scanned sticker line](#tf-a78-read-the-tag-issued-on-a-scanned-sticker-line) |
-| A79 | [Read a tag's public detail by tag number and traveller document](#tf-a79-read-a-tags-public-detail-by-tag-number-and-traveller-document) |
-| A80 | [Read an unclaimed draft tag's public detail by tag id](#tf-a80-read-an-unclaimed-draft-tags-public-detail-by-tag-id) |
-| A81 | [Offer the claim only while the tag has no traveller](#tf-a81-offer-the-claim-only-while-the-tag-has-no-traveller) |
-| A82 | [Claim an unclaimed draft tag from the scanned tag page](#tf-a82-claim-an-unclaimed-draft-tag-from-the-scanned-tag-page) |
-| A83 | [Defer the claim through login and resume on the same tag](#tf-a83-defer-the-claim-through-login-and-resume-on-the-same-tag) |
-| A84 | [Refuse a validate page opened without a scanned QR value](#tf-a84-refuse-a-validate-page-opened-without-a-scanned-qr-value) |
-| A85 | [Probe whether the session can still scan before trusting it](#tf-a85-probe-whether-the-session-can-still-scan-before-trusting-it) |
-| A86 | [Grant the device location for the validation scan](#tf-a86-grant-the-device-location-for-the-validation-scan) |
-| A87 | [Resolve whether the KYC-verified traveller already has an account](#tf-a87-resolve-whether-the-kyc-verified-traveller-already-has-an-account) |
-| A88 | [Exchange the KYC session for an access token and sign in](#tf-a88-exchange-the-kyc-session-for-an-access-token-and-sign-in) |
-| A89 | [Scan the boarding pass for the flight ticket](#tf-a89-scan-the-boarding-pass-for-the-flight-ticket) |
-| A90 | [Run the airport self-validation scan](#tf-a90-run-the-airport-self-validation-scan) |
-| A91 | [Enrich the scan result with each returned tag's detail](#tf-a91-enrich-the-scan-result-with-each-returned-tags-detail) |
-| A92 | [Rescan a validate QR that expired mid-flow](#tf-a92-rescan-a-validate-qr-that-expired-mid-flow) |
-| A93 | [Scan a further tag's QR in the claim modal and read it by id](#tf-a93-scan-a-further-tags-qr-in-the-claim-modal-and-read-it-by-id) |
-| A94 | [Claim a further tag from the claim modal](#tf-a94-claim-a-further-tag-from-the-claim-modal) |
-| A95 | [Type a tag number and sales amount to claim without scanning](#tf-a95-type-a-tag-number-and-sales-amount-to-claim-without-scanning) |
-| A96 | [Re-run the validation scan after a claim so the new tag appears](#tf-a96-re-run-the-validation-scan-after-a-claim-so-the-new-tag-appears) |
-| A97 | [List own tags across tenants](#tf-a97-list-own-tags-across-tenants) |
-| A98 | [Open the claim modal from the tags page, behind the self-assign grant](#tf-a98-open-the-claim-modal-from-the-tags-page-behind-the-self-assign-grant) |
-| A99 | [Open one of the traveller's own tags by tag number](#tf-a99-open-one-of-the-travellers-own-tags-by-tag-number) |
-| A100 | [Type the flight ticket when there is no readable boarding pass](#tf-a100-type-the-flight-ticket-when-there-is-no-readable-boarding-pass) |
-| A101 | [Carry the pre-KYC location across the login so the scan step does not re-prompt](#tf-a101-carry-the-pre-kyc-location-across-the-login-so-the-scan-step-does-not-re-prompt) |
-| A102 | [Open the claim modal from the validation results](#tf-a102-open-the-claim-modal-from-the-validation-results) |
+| A01 | [Scan a QR before choosing a role](#tf-a01--scan-a-qr-before-choosing-a-role) |
+| A02 | [Scan a QR from the traveller login screen](#tf-a02--scan-a-qr-from-the-traveller-login-screen) |
+| A03 | [Look up a tag by typed tag number and passport number](#tf-a03--look-up-a-tag-by-typed-tag-number-and-passport-number) |
+| A04 | [Look up the tag issued on a typed sticker line number](#tf-a04--look-up-the-tag-issued-on-a-typed-sticker-line-number) |
+| A05 | [Resolve a bare tag number to its tag id](#tf-a05--resolve-a-bare-tag-number-to-its-tag-id) |
+| A06 | [Read a scanned tag's public detail by tag id](#tf-a06--read-a-scanned-tags-public-detail-by-tag-id) |
+| A07 | [Read a tag's public detail by tag number and traveller document](#tf-a07--read-a-tags-public-detail-by-tag-number-and-traveller-document) |
+| A08 | [Read the tag issued on a scanned sticker line](#tf-a08--read-the-tag-issued-on-a-scanned-sticker-line) |
+| A09 | [Claim an unclaimed draft tag](#tf-a09--claim-an-unclaimed-draft-tag) |
+| A10 | [Assign a traveller to a scanned draft tag](#tf-a10--assign-a-traveller-to-a-scanned-draft-tag) |
+| A11 | [Resolve a traveller by document number to attach or assign](#tf-a11--resolve-a-traveller-by-document-number-to-attach-or-assign) |
+| A12 | [Resolve a scanned sticker line](#tf-a12--resolve-a-scanned-sticker-line) |
+| A13 | [A used sticker opens its tag instead of a create form](#tf-a13--a-used-sticker-opens-its-tag-instead-of-a-create-form) |
+| A14 | [Resolve the merchant an allocated sticker book is booked to](#tf-a14--resolve-the-merchant-an-allocated-sticker-book-is-booked-to) |
+| A15 | [Pick a merchant for an unallocated sticker book](#tf-a15--pick-a-merchant-for-an-unallocated-sticker-book) |
+| A16 | [Load own product groups to price a sticker tag](#tf-a16--load-own-product-groups-to-price-a-sticker-tag) |
+| A17 | [Load own VAT identity for the sticker create call](#tf-a17--load-own-vat-identity-for-the-sticker-create-call) |
+| A18 | [Refuse a sticker book allocated to another merchant](#tf-a18--refuse-a-sticker-book-allocated-to-another-merchant) |
+| A19 | [Create a tag against a scanned sticker as the merchant](#tf-a19--create-a-tag-against-a-scanned-sticker-as-the-merchant) |
+| A20 | [Create a tag against a scanned sticker on a merchant's behalf](#tf-a20--create-a-tag-against-a-scanned-sticker-on-a-merchants-behalf) |
+| A21 | [Capture the merchant and traveller signatures on a sticker tag](#tf-a21--capture-the-merchant-and-traveller-signatures-on-a-sticker-tag) |
+| A22 | [Run the airport self-validation scan](#tf-a22--run-the-airport-self-validation-scan) |
+| A23 | [Scan the boarding pass for the flight ticket](#tf-a23--scan-the-boarding-pass-for-the-flight-ticket) |
+| A24 | [Rescan an expired validate QR mid-flow](#tf-a24--rescan-an-expired-validate-qr-mid-flow) |
+| A25 | [Claim a further tag from the validation results](#tf-a25--claim-a-further-tag-from-the-validation-results) |
+| A26 | [Refuse a validate QR scanned by staff](#tf-a26--refuse-a-validate-qr-scanned-by-staff) |
+| A27 | [Create a tag from the merchant Create Tag screen](#tf-a27--create-a-tag-from-the-merchant-create-tag-screen) |
+| A28 | [List own tags across tenants](#tf-a28--list-own-tags-across-tenants) |
+| A29 | [List the tenant's tags](#tf-a29--list-the-tenants-tags) |
+| A30 | [Open the detail of a tag the caller owns](#tf-a30--open-the-detail-of-a-tag-the-caller-owns) |
+| A31 | [Open the tenant detail of a tag by id](#tf-a31--open-the-tenant-detail-of-a-tag-by-id) |
+| A32 | [Assign a traveller to a draft tag from the tag detail](#tf-a32--assign-a-traveller-to-a-draft-tag-from-the-tag-detail) |
+| A33 | [Scan a QR from the authenticated app](#tf-a33--scan-a-qr-from-the-authenticated-app) |
+| A34 | [Classify a raw scan as tag, sticker, validate or unknown](#tf-a34--classify-a-raw-scan-as-tag-sticker-validate-or-unknown) |
+| A35 | [Turn a classification plus the active role into a destination](#tf-a35--turn-a-classification-plus-the-active-role-into-a-destination) |
+| A36 | [Own the scanner's visibility and hand a read to the routing](#tf-a36--own-the-scanners-visibility-and-hand-a-read-to-the-routing) |
+| A37 | [Perform a scan destination: navigate, refuse, or resolve first](#tf-a37--perform-a-scan-destination-navigate-refuse-or-resolve-first) |
+| A38 | [Complete a claim deferred through login, once authenticated](#tf-a38--complete-a-claim-deferred-through-login-once-authenticated) |
+| A39 | [Open the camera and scan a code on the sticker page](#tf-a39--open-the-camera-and-scan-a-code-on-the-sticker-page) |
+| A40 | [Read a sticker line number or tag code from a wedge scanner](#tf-a40--read-a-sticker-line-number-or-tag-code-from-a-wedge-scanner) |
+| A41 | [Classify a scan as sticker, tag, validate or nothing](#tf-a41--classify-a-scan-as-sticker-tag-validate-or-nothing) |
+| A42 | [Refuse a traveller validate QR scanned by staff](#tf-a42--refuse-a-traveller-validate-qr-scanned-by-staff) |
+| A43 | [Resolve a scanned sticker line](#tf-a43--resolve-a-scanned-sticker-line) |
+| A44 | [A used sticker opens its tag instead of the create form](#tf-a44--a-used-sticker-opens-its-tag-instead-of-the-create-form) |
+| A45 | [Resolve a tag id from a scanned tag number](#tf-a45--resolve-a-tag-id-from-a-scanned-tag-number) |
+| A46 | [Refuse to open a scanned tag without the tag-view grant](#tf-a46--refuse-to-open-a-scanned-tag-without-the-tag-view-grant) |
+| A47 | [Refuse a sticker book allocated to another merchant](#tf-a47--refuse-a-sticker-book-allocated-to-another-merchant) |
+| A48 | [Resolve the merchant a scanned sticker book is booked to](#tf-a48--resolve-the-merchant-a-scanned-sticker-book-is-booked-to) |
+| A49 | [Load own product groups to price a scanned sticker tag](#tf-a49--load-own-product-groups-to-price-a-scanned-sticker-tag) |
+| A50 | [Load own merchant identity for the sticker create call](#tf-a50--load-own-merchant-identity-for-the-sticker-create-call) |
+| A51 | [Pick a merchant for an unallocated sticker book](#tf-a51--pick-a-merchant-for-an-unallocated-sticker-book) |
+| A52 | [Preview the picked merchant on the unallocated sticker line](#tf-a52--preview-the-picked-merchant-on-the-unallocated-sticker-line) |
+| A53 | [Attach a traveller to a scanned sticker tag by document search](#tf-a53--attach-a-traveller-to-a-scanned-sticker-tag-by-document-search) |
+| A54 | [Capture the merchant and traveller signatures on a scanned sticker tag](#tf-a54--capture-the-merchant-and-traveller-signatures-on-a-scanned-sticker-tag) |
+| A55 | [Create a tag against a scanned sticker as the merchant](#tf-a55--create-a-tag-against-a-scanned-sticker-as-the-merchant) |
+| A56 | [Create a tag against a scanned sticker on a merchant's behalf](#tf-a56--create-a-tag-against-a-scanned-sticker-on-a-merchants-behalf) |
+| A57 | [List the tenant's tags a scan-created tag lands in](#tf-a57--list-the-tenants-tags-a-scan-created-tag-lands-in) |
+| A58 | [Open the tag a scanned QR resolved to](#tf-a58--open-the-tag-a-scanned-qr-resolved-to) |
+| A59 | [Assign a traveller to a draft tag from the tag detail](#tf-a59--assign-a-traveller-to-a-draft-tag-from-the-tag-detail) |
+| A60 | [Render the tag's own QR onto the printable tax-free form](#tf-a60--render-the-tags-own-qr-onto-the-printable-tax-free-form) |
+| A61 | [Print the tag through the report service](#tf-a61--print-the-tag-through-the-report-service) |
+| A62 | [Create a tag from the new-tag form, with no sticker scanned](#tf-a62--create-a-tag-from-the-new-tag-form-with-no-sticker-scanned) |
+| A63 | [Open the bulk scan-and-assign sheet](#tf-a63--open-the-bulk-scan-and-assign-sheet) |
+| A64 | [Scan draft tag QRs into the bulk basket with the camera](#tf-a64--scan-draft-tag-qrs-into-the-bulk-basket-with-the-camera) |
+| A65 | [Read a draft tag code into the bulk basket from a wedge scanner](#tf-a65--read-a-draft-tag-code-into-the-bulk-basket-from-a-wedge-scanner) |
+| A66 | [Type a tag number into the bulk basket](#tf-a66--type-a-tag-number-into-the-bulk-basket) |
+| A67 | [Look up each scanned tag before it enters the bulk basket](#tf-a67--look-up-each-scanned-tag-before-it-enters-the-bulk-basket) |
+| A68 | [Refuse a scanned tag that is not an unassigned draft](#tf-a68--refuse-a-scanned-tag-that-is-not-an-unassigned-draft) |
+| A69 | [Resolve the traveller the bulk basket will be assigned to](#tf-a69--resolve-the-traveller-the-bulk-basket-will-be-assigned-to) |
+| A70 | [Assign every tag in the bulk basket to that traveller](#tf-a70--assign-every-tag-in-the-bulk-basket-to-that-traveller) |
+| A71 | [Resolve a traveller from a scanned passport at the customs desk](#tf-a71--resolve-a-traveller-from-a-scanned-passport-at-the-customs-desk) |
+| A72 | [Load the tags of the traveller under customs review](#tf-a72--load-the-tags-of-the-traveller-under-customs-review) |
+| A73 | [Require a registered kiosk device before a validate QR is shown](#tf-a73--require-a-registered-kiosk-device-before-a-validate-qr-is-shown) |
+| A74 | [Generate the rolling customs validate QR](#tf-a74--generate-the-rolling-customs-validate-qr) |
+| A75 | [Roll the displayed validate QR every thirty seconds](#tf-a75--roll-the-displayed-validate-qr-every-thirty-seconds) |
+| A76 | [Scan tags into a refund — disabled](#tf-a76--scan-tags-into-a-refund--disabled) |
+| A77 | [Look up a tag by typed tag number and passport number](#tf-a77--look-up-a-tag-by-typed-tag-number-and-passport-number) |
+| A78 | [Read the tag issued on a scanned sticker line](#tf-a78--read-the-tag-issued-on-a-scanned-sticker-line) |
+| A79 | [Read a tag's public detail by tag number and traveller document](#tf-a79--read-a-tags-public-detail-by-tag-number-and-traveller-document) |
+| A80 | [Read an unclaimed draft tag's public detail by tag id](#tf-a80--read-an-unclaimed-draft-tags-public-detail-by-tag-id) |
+| A81 | [Offer the claim only while the tag has no traveller](#tf-a81--offer-the-claim-only-while-the-tag-has-no-traveller) |
+| A82 | [Claim an unclaimed draft tag from the scanned tag page](#tf-a82--claim-an-unclaimed-draft-tag-from-the-scanned-tag-page) |
+| A83 | [Defer the claim through login and resume on the same tag](#tf-a83--defer-the-claim-through-login-and-resume-on-the-same-tag) |
+| A84 | [Refuse a validate page opened without a scanned QR value](#tf-a84--refuse-a-validate-page-opened-without-a-scanned-qr-value) |
+| A85 | [Probe whether the session can still scan before trusting it](#tf-a85--probe-whether-the-session-can-still-scan-before-trusting-it) |
+| A86 | [Grant the device location for the validation scan](#tf-a86--grant-the-device-location-for-the-validation-scan) |
+| A87 | [Resolve whether the KYC-verified traveller already has an account](#tf-a87--resolve-whether-the-kyc-verified-traveller-already-has-an-account) |
+| A88 | [Exchange the KYC session for an access token and sign in](#tf-a88--exchange-the-kyc-session-for-an-access-token-and-sign-in) |
+| A89 | [Scan the boarding pass for the flight ticket](#tf-a89--scan-the-boarding-pass-for-the-flight-ticket) |
+| A90 | [Run the airport self-validation scan](#tf-a90--run-the-airport-self-validation-scan) |
+| A91 | [Enrich the scan result with each returned tag's detail](#tf-a91--enrich-the-scan-result-with-each-returned-tags-detail) |
+| A92 | [Rescan a validate QR that expired mid-flow](#tf-a92--rescan-a-validate-qr-that-expired-mid-flow) |
+| A93 | [Scan a further tag's QR in the claim modal and read it by id](#tf-a93--scan-a-further-tags-qr-in-the-claim-modal-and-read-it-by-id) |
+| A94 | [Claim a further tag from the claim modal](#tf-a94--claim-a-further-tag-from-the-claim-modal) |
+| A95 | [Type a tag number and sales amount to claim without scanning](#tf-a95--type-a-tag-number-and-sales-amount-to-claim-without-scanning) |
+| A96 | [Re-run the validation scan after a claim so the new tag appears](#tf-a96--re-run-the-validation-scan-after-a-claim-so-the-new-tag-appears) |
+| A97 | [List own tags across tenants](#tf-a97--list-own-tags-across-tenants) |
+| A98 | [Open the claim modal from the tags page, behind the self-assign grant](#tf-a98--open-the-claim-modal-from-the-tags-page-behind-the-self-assign-grant) |
+| A99 | [Open one of the traveller's own tags by tag number](#tf-a99--open-one-of-the-travellers-own-tags-by-tag-number) |
+| A100 | [Type the flight ticket when there is no readable boarding pass](#tf-a100--type-the-flight-ticket-when-there-is-no-readable-boarding-pass) |
+| A101 | [Carry the pre-KYC location across the login so the scan step does not re-prompt](#tf-a101--carry-the-pre-kyc-location-across-the-login-so-the-scan-step-does-not-re-prompt) |
+| A102 | [Open the claim modal from the validation results](#tf-a102--open-the-claim-modal-from-the-validation-results) |
 
 102 ids, `A01` through `A102`, each with exactly one flow above.
 

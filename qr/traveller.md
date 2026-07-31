@@ -127,13 +127,13 @@ accepting them (`:38`–`41`). `apps/ssr`'s local `parseBcbp`
 airport-code validation. A concrete consequence: a boarding pass whose barcode
 carries a leading symbology prefix (or a scanner-injected newline) parses on
 `super-app` and falls through to the "unreadable" state on `apps/ssr`. This is
-routed as a Finding to Task 13.
+recorded as [`F15`](README.md#findings).
 
 **The scan and its result buckets (`A22`/`A90`).** Both apps POST the same
 scan endpoint and receive `greenTagIds`, `redTagIds`, `customsRejectedTagIds`
 and `alreadyClearedTagIds`. **Only three of those four buckets are ever shown
-to the traveller, on either app** — this corrects a claim in this chapter's own
-dispatch, which described a visible "already validated" bucket. On
+to the traveller, on either app** — correcting an earlier note in the survey
+behind this guide, which had described a visible "already validated" bucket. On
 `super-app`, the "already cleared" section is written but entirely commented
 out of the rendered list
 (`super-app/src/screens/traveller/Validate/ScanResultView.tsx:57`–`68`); the
@@ -147,8 +147,8 @@ computes an `alreadyCleared` array
 carry a translation string for it
 (`MobileApp.Qr.Validate.AlreadyCleared` /
 `Validate.ScanResult.AlreadyClearedTags`) that no component ever renders. This
-is routed as a Finding to Task 13: an orphaned bucket and orphaned copy on both
-platforms, not a one-off oversight on either. The red bucket carries suggested
+is recorded as [`F17`](README.md#findings): an orphaned bucket and orphaned copy
+on both platforms, not a one-off oversight on either. The red bucket carries suggested
 customs exit points when present (`ScanResultView.tsx:144`–`147` on
 `super-app`; `scan-result-view.tsx:363` on `apps/ssr`), and an empty result
 (all three visible buckets empty) shows a dedicated empty state on both apps
@@ -199,7 +199,8 @@ falls through to the same generic `LookupFailed` component every other lookup
 failure uses
 (`web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/page.tsx:163`–`167`,
 `72`–`98`), showing either the server's own error text or a generic
-"something went wrong". This asymmetry is routed as a Finding to Task 13.
+"something went wrong". This asymmetry is recorded as
+[`F28`](README.md#findings).
 
 **Manual entry (`#9`, `A04`).** `/manual-entry`'s sticker mode
 (`super-app/src/screens/shared/ManualEntryScreen.tsx:122`–`139`) is the typed
@@ -301,7 +302,7 @@ directly with no lookup at all. Either path relies entirely on the self-assign
 endpoint's own rejection, surfaced as a generic toast
 (`claim-tag-modal.tsx:152`–`153`,`193`–`194`), to refuse a non-Draft tag. This
 is the opposite of `super-app`'s validate-results modal, which pre-checks and
-shows dedicated copy. Routed as a Finding to Task 13.
+shows dedicated copy. Recorded as [`F27`](README.md#findings).
 
 ## Cross-cutting: deferred claim intent
 
@@ -393,10 +394,9 @@ or arrives after an early dismiss), the rescan **never fires at all** — no
 error state, no failed state, nothing distinguishing it from a session where
 no claim happened. The tag is still claimed server-side and will appear the
 next time anything re-runs the scan, but nothing on this screen tells the
-traveller that, and nothing prompts them to look. This is routed as a new
-Finding for Task 13 below, alongside the BCBP-parser drift — `QR_FEATURE_CHECKLIST.md`
-Phase 8 was written on the assumption that both apps bound this gap the same
-way, and they do not.
+traveller that, and nothing prompts them to look. This is recorded as
+[`F4`](README.md#findings), alongside the BCBP-parser drift at
+[`F15`](README.md#findings).
 
 ## After the claim: the traveller's own tags
 
