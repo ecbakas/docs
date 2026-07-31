@@ -30,15 +30,68 @@ reachable only inside an authenticated session; that requirement lives in the
 
 ## Route → action
 
-Task 4 completes this table, once the `apps/web` and `apps/ssr` sections exist
-and every route in the guide has an action id to point at.
+Every action id below appears at least once. Where a route is spelled the same
+in two apps — `/validate` exists in both `super-app` and `apps/ssr` — the `App`
+column is what tells them apart.
+
+| Route | App | Actions reachable |
+| --- | --- | --- |
+| `/role-select` | `super-app` | A01, A34, A35, A36, A37 |
+| `/traveller-login` | `super-app` | A02, A34, A35, A36, A37 |
+| `/manual-entry` | `super-app` | A03, A04, A05, A35, A37 |
+| `/tag-preview` | `super-app` | A06, A07, A08, A09, A10, A11, A38 |
+| `/sticker-tag` | `super-app` | A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21 |
+| `/validate` | `super-app` | A22, A23, A24, A25, A26, A34 |
+| `/(auth)` | `super-app` | A33, A34, A35, A36, A37, A38 |
+| `/(auth)/tags` | `super-app` | A28, A29 |
+| `/(auth)/tags/[tagId]` | `super-app` | A11, A30, A31, A32 |
+| `/(auth)/create-tag` | `super-app` | A11, A27 |
+| `/operations/scan-sticker` | `web-app/apps/web` | A39, A40, A41, A42, A43, A44, A45, A46, A47, A48, A49, A50, A51, A52, A53, A54, A55, A56 |
+| `/operations/tax-free-tags` | `web-app/apps/web` | A57, A63, A64, A65, A66, A67, A68, A69, A70 |
+| `/operations/tax-free-tags/new` | `web-app/apps/web` | A62 |
+| `/operations/tax-free-tags/[tagId]` | `web-app/apps/web` | A58, A59, A60, A61 |
+| `/operations/tags` | `web-app/apps/web` | A63, A64, A65, A66, A67, A68, A69, A70, A71, A72 |
+| `/operations/refund` | `web-app/apps/web` | A76 |
+| `/qr` | `web-app/apps/web` | A73, A74, A75 |
+| `/tag` | `web-app/apps/ssr` | A77 |
+| `/tag/[slug]` | `web-app/apps/ssr` | A77, A78, A79, A80, A81, A82, A83 |
+| `/login` | `web-app/apps/ssr` | A83 |
+| `/login/kyc` | `web-app/apps/ssr` | A87, A88 |
+| `/validate` | `web-app/apps/ssr` | A84, A85, A86, A87, A88, A89, A90, A91, A92, A93, A94, A95, A96 |
+| `/tags` | `web-app/apps/ssr` | A93, A94, A95, A97, A98 |
+| `/tags/[tagNumber]` | `web-app/apps/ssr` | A99 |
+
+Three placements in that table are not read off an action's own `Route` cell, so
+they are recorded here.
+
+`A11` — the traveller document search — carries only its two QR routes in the
+registry, but `SearchTraveller` is also mounted by `TagDetailScreen` and
+`CreateTagScreen`, so `/(auth)/tags/[tagId]` and `/(auth)/create-tag` reach it
+too.
+
+`A34`–`A37` are `super-app`'s shared scan pipeline and carry `Route` = `—`,
+because they are a hook and three pure functions rather than a screen. They are
+placed on the routes that actually run them, verified by call site rather than
+inferred: `useQrScanLauncher` (A36) is mounted by `SeamScanPill.tsx:40`,
+`TravellerLoginScreen.tsx:27` and `(auth)/_layout.tsx:59`, and it calls
+`routeScan(classifyScan(...))` at `useQrScanLauncher.tsx:44`, which is what puts
+A34, A35 and A37 on those same three routes. `/manual-entry` reaches A37 — and
+through it A35 — directly, via `useScanRouting` at `ManualEntryScreen.tsx:43`,
+but **not** A34: manual entry builds its classification with
+`buildManualEntryClassification` (`manualEntry.ts:30`) rather than by calling
+`classifyScan`. A34's other call site is `ClaimTagModal.tsx:80`, which is what
+puts it on `super-app`'s `/validate`.
+
+`A83` — the deferred claim — is listed under `/login` as well as `/tag/[slug]`
+because the round trip is the action: the button hands `/login` a `redirectTo`
+pointing back at the very slug the traveller was reading.
 
 ## Actions — `super-app`
 
 | ID | Action | Actor | Trigger | App | Route | UI entry | Client wrapper | SDK method | Endpoint | Permission | Cap # | Cell |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| A01 | Scan a QR before choosing a role | Anyone, pre-login | Scan QR pill on the role seam | `super-app` | `/role-select` | `super-app/src/screens/shared/_components/SeamScanPill.tsx:69` | — | — | — client only | — | 24 | T1–T3 |
-| A02 | Scan a QR from the traveller login screen | Traveller, logged out | Scan QR button under the login form | `super-app` | `/traveller-login` | `super-app/src/screens/traveller/TravellerLoginScreen.tsx:166` | — | — | — client only | — | 24 | T1–T3 |
+| A01 | Scan a QR before choosing a role | Anyone, pre-login | Scan QR pill on the role seam | `super-app` | `/role-select` | `super-app/src/screens/shared/_components/SeamScanPill.tsx:69` | — | — | — client only | — | 24 | T1, T2, T3 |
+| A02 | Scan a QR from the traveller login screen | Traveller, logged out | Scan QR button under the login form | `super-app` | `/traveller-login` | `super-app/src/screens/traveller/TravellerLoginScreen.tsx:166` | — | — | — client only | — | 24 | T1, T2, T3 |
 | A03 | Look up a tag by typed tag number and passport number | Traveller | Submit on manual entry, tag mode | `super-app` | `/manual-entry` | `super-app/src/screens/shared/ManualEntryScreen.tsx:186` | — | — | — client only | — | 9 | T3 |
 | A04 | Look up the tag issued on a typed sticker line number | Traveller, Merchant, Refund Point | Submit on manual entry, sticker mode | `super-app` | `/manual-entry` | `super-app/src/screens/shared/ManualEntryScreen.tsx:186` | — | — | — client only | — | 9, 18 | T2, M2, R2 |
 | A05 | Resolve a bare tag number to its tag id | Merchant, Refund Point | Submit on manual entry, tag mode; also a scanned Code128 tag number | `super-app` | `/manual-entry` | `super-app/src/hooks/useScanRouting.ts:41` | `getTagDetailByTagNumber` — `super-app/src/actions/TagService/actions.ts:266` | `client.tag.getApiTagServiceTagByTagNumberDetailByTagNumber` | GET /api/tag-service/tag/{tagNumber}/detail-by-tag-number | TagService.Tags, TagService.Tags.DetailByTagNumber | 18, 28 | M3, R3 |
@@ -69,11 +122,11 @@ and every route in the guide has an action id to point at.
 | A30 | Open the detail of a tag the caller owns | Traveller | Tag row, or View in my tags on the scanned preview | `super-app` | `/(auth)/tags/[tagId]` | `super-app/src/screens/shared/Tags/TagDetail/useTagDetail.tsx:31` | `getOwnedTagByTagNumber` — `super-app/src/actions/TagService/actions.ts:105` | `client.tag.getApiTagServiceTagCrossTenantsByTravellerIdClaimByTagNumber` | GET /api/tag-service/tag/cross-tenants/by-traveller-id-claim/{tagNumber} | TagService.Tags, TagService.Tags.GetTagByTagNumberCrossTenants | — | — |
 | A31 | Open the tenant detail of a tag by id | Merchant, Refund Point | Tag row, or View details on the scanned preview | `super-app` | `/(auth)/tags/[tagId]` | `super-app/src/screens/shared/Tags/TagDetail/useTagDetail.tsx:31` | `getTagDetailsById` — `super-app/src/actions/TagService/actions.ts:32` | `client.tag.getApiTagServiceTagByIdDetail` | GET /api/tag-service/tag/{id}/detail | TagService.Tags, TagService.Tags.Detail | — | — |
 | A32 | Assign a traveller to a draft tag from the tag detail | Merchant, Refund Point | Assign traveller button on the tag detail | `super-app` | `/(auth)/tags/[tagId]` | `super-app/src/screens/shared/Tags/TagDetail/TagDetailScreen.tsx:209` | `postApiTagServiceTagByIdAssignTraveller` — `super-app/src/actions/TagService/post.ts:26` | `client.tag.postApiTagServiceTagByIdAssignTraveller` | POST /api/tag-service/tag/{id}/assign-traveller | TagService.Tags, TagService.Tags.AssignTraveller | — | — |
-| A33 | Scan a QR from the authenticated app | Traveller, Merchant, Refund Point | Centre tab QR button | `super-app` | `/(auth)` | `super-app/src/app/(auth)/_layout.tsx:128` | — | — | — client only | — | 23 | T1–T3, M1–M3, R1–R3 |
-| A34 | Classify a raw scan as tag, sticker, validate or unknown | Anyone | Any accepted camera read, and every manual entry | `super-app` | — | `super-app/src/utils/qr/classifyScan.ts:38` | — | — | — client only | — | 23, 28 | T1–T3, M1–M3, R1–R3 |
-| A35 | Turn a classification plus the active role into a destination | Anyone | Every classified scan | `super-app` | — | `super-app/src/utils/qr/scanDestination.ts:26` | — | — | — client only | — | 22, 24, 25 | T1–T3, M1–M3, R1–R3 |
-| A36 | Own the scanner's visibility and hand a read to the routing | Anyone | Every scan entry point, plus its manual entry fallback | `super-app` | — | `super-app/src/hooks/useQrScanLauncher.tsx:20` | — | — | — client only | — | 9, 23 | T1–T3, M1–M3, R1–R3 |
-| A37 | Perform a scan destination: navigate, refuse, or resolve first | Anyone | Every classified scan and every manual entry submit | `super-app` | — | `super-app/src/hooks/useScanRouting.ts:20` | — | — | — client only | — | 18, 22 | T1–T3, M1–M3, R1–R3 |
+| A33 | Scan a QR from the authenticated app | Traveller, Merchant, Refund Point | Centre tab QR button | `super-app` | `/(auth)` | `super-app/src/app/(auth)/_layout.tsx:128` | — | — | — client only | — | 23 | T1, T2, T3, M1, M2, M3, R1, R2, R3 |
+| A34 | Classify a raw scan as tag, sticker, validate or unknown | Anyone | Any accepted camera read, and every manual entry | `super-app` | — | `super-app/src/utils/qr/classifyScan.ts:38` | — | — | — client only | — | 23, 28 | T1, T2, T3, M1, M2, M3, R1, R2, R3 |
+| A35 | Turn a classification plus the active role into a destination | Anyone | Every classified scan | `super-app` | — | `super-app/src/utils/qr/scanDestination.ts:26` | — | — | — client only | — | 22, 24, 25 | T1, T2, T3, M1, M2, M3, R1, R2, R3 |
+| A36 | Own the scanner's visibility and hand a read to the routing | Anyone | Every scan entry point, plus its manual entry fallback | `super-app` | — | `super-app/src/hooks/useQrScanLauncher.tsx:20` | — | — | — client only | — | 9, 23 | T1, T2, T3, M1, M2, M3, R1, R2, R3 |
+| A37 | Perform a scan destination: navigate, refuse, or resolve first | Anyone | Every classified scan and every manual entry submit | `super-app` | — | `super-app/src/hooks/useScanRouting.ts:20` | — | — | — client only | — | 18, 22 | T1, T2, T3, M1, M2, M3, R1, R2, R3 |
 | A38 | Complete a claim deferred through login, once authenticated | Traveller, logged out then authenticated | Log in to claim, then the `(auth)` mount effect — no second press | `super-app` | `/tag-preview`, `/(auth)` | `super-app/src/store/pendingScan.ts:22`, `super-app/src/hooks/useResumePendingScan.tsx:31` | `postTagTravellerSelfAssign` — `super-app/src/actions/TagService/actions.ts:76` | `client.tag.postApiTagServiceTagTravellerSelfAssign` | POST /api/tag-service/tag/traveller-self-assign | TagService.Tags, TagService.Tags.TravellerSelfAssign | 4 | T2, T3 |
 
 ## Actions — `web-app/apps/web`
@@ -101,8 +154,8 @@ and every route in the guide has an action id to point at.
 | A57 | List the tenant's tags a scan-created tag lands in | Merchant, Refund Point, Customs, Admin | Tax-free tags page, and the redirect after every scan-driven create | `web-app/apps/web` | `/operations/tax-free-tags` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/page.tsx:40` | `getTagsApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:26` | `client.tag.getApiTagServiceTag` | GET /api/tag-service/tag | TagService.Tags, TagService.Tags.ViewList | — | — |
 | A58 | Open the tag a scanned QR resolved to | Merchant, Refund Point, Customs, Admin | Navigation from a tag QR, a used sticker, or a tag row | `web-app/apps/web` | `/operations/tax-free-tags/[tagId]` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/[tagId]/page.tsx:31` | `getTagByIdApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:51` | `client.tag.getApiTagServiceTagByIdDetail` | GET /api/tag-service/tag/{id}/detail | TagService.Tags, TagService.Tags.Detail | 14, 16 | M3, R3 |
 | A59 | Assign a traveller to a draft tag from the tag detail | Merchant, Refund Point, Customs | Assign button in the assign-traveller popover | `web-app/apps/web` | `/operations/tax-free-tags/[tagId]` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/[tagId]/_components/assign-traveller.tsx:209` | `postTagByIdAssignTravellerApi` — `web-app/packages/actions/unirefund/TagService/post-actions.ts:44` | `client.tag.postApiTagServiceTagByIdAssignTraveller` | POST /api/tag-service/tag/{id}/assign-traveller | TagService.Tags, TagService.Tags.AssignTraveller | 16 | M3, R3 |
-| A60 | Render the tag's own QR onto the printable tax-free form | Merchant, Refund Point, Admin | Print handler on the tag detail, rendering `tagDetails.publicLink` | `web-app/apps/web` | `/operations/tax-free-tags/[tagId]` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/[tagId]/_components/print-tag.tsx:286` | — | — | — client only | — | — | — |
-| A61 | Print the tag through the report service | Merchant, Refund Point, Admin | Print tag button in the tag detail footer | `web-app/apps/web` | `/operations/tax-free-tags/[tagId]` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/[tagId]/_components/tag-actions.tsx:115` | `getReportsSynchronouslyByEntityApi` — `web-app/packages/actions/unirefund/ReportService/actions.ts:17` | `client.report.getApiReportServiceReportsSynchronouslyByEntity` | GET /api/report-service/reports/synchronously/by-entity | ReportService.Reports, ReportService.Reports.CreateSynchronously | — | — |
+| A60 | Render the tag's own QR onto the printable tax-free form | Merchant, Refund Point, Customs, Admin | Print handler on the tag detail, rendering `tagDetails.publicLink` | `web-app/apps/web` | `/operations/tax-free-tags/[tagId]` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/[tagId]/_components/print-tag.tsx:286` | — | — | — client only | — | — | — |
+| A61 | Print the tag through the report service | Merchant, Refund Point, Customs, Admin | Print tag button in the tag detail footer | `web-app/apps/web` | `/operations/tax-free-tags/[tagId]` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/[tagId]/_components/tag-actions.tsx:115` | `getReportsSynchronouslyByEntityApi` — `web-app/packages/actions/unirefund/ReportService/actions.ts:17` | `client.report.getApiReportServiceReportsSynchronouslyByEntity` | GET /api/report-service/reports/synchronously/by-entity | ReportService.Reports, ReportService.Reports.CreateSynchronously | — | — |
 | A62 | Create a tag from the new-tag form, with no sticker scanned | Merchant, Admin | Create tag button on the new-tag page | `web-app/apps/web` | `/operations/tax-free-tags/new` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/new/client.tsx:176` | `postTagApi` — `web-app/packages/actions/unirefund/TagService/post-actions.ts:34` | `client.tag.postApiTagServiceTag` | POST /api/tag-service/tag | TagService.Tags, TagService.Tags.Create | — | — |
 | A63 | Open the bulk scan-and-assign sheet | Customs | Assign draft tags toolbar button, or Assign draft on the traveller card | `web-app/apps/web` | `/operations/tax-free-tags`, `/operations/tags` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/_components/customs/customs-tags-config.tsx:291`, `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tags/_components/customs-tags-workspace.tsx:176` | — | — | — client only | — | 17 | — |
 | A64 | Scan draft tag QRs into the bulk basket with the camera | Customs | Camera scanner inside the assign-draft sheet | `web-app/apps/web` | `/operations/tax-free-tags`, `/operations/tags` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/_components/customs/assign-draft-content.tsx:366` | — | — | — client only | — | 17, 23 | — |
@@ -112,7 +165,7 @@ and every route in the guide has an action id to point at.
 | A68 | Refuse a scanned tag that is not an unassigned draft | Customs | Lookup returns a non-Draft status, an existing traveller, or nothing | `web-app/apps/web` | `/operations/tax-free-tags`, `/operations/tags` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/_components/customs/assign-draft-content.tsx:124` | — | — | — client only | — | 17 | — |
 | A69 | Resolve the traveller the bulk basket will be assigned to | Customs | Traveller tab search in the assign-draft sheet, auto-run from the URL document number | `web-app/apps/web` | `/operations/tax-free-tags`, `/operations/tags` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/_components/customs/assign-draft-content.tsx:547` | `getTravellersByDocumentNumberApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:178`, called at `web-app/apps/web/src/components/search-traveller.tsx:179` | `client.traveller.getApiTravellerServiceTravellersSearchByDocumentNumber` | GET /api/traveller-service/travellers/search/by-document-number | TravellerService.Travellers, TravellerService.Travellers.SearchByTravellerDocumentNumber | 17 | — |
 | A70 | Assign every tag in the bulk basket to that traveller | Customs | Assign button at the foot of the assign-draft sheet, one call per tag | `web-app/apps/web` | `/operations/tax-free-tags`, `/operations/tags` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tax-free-tags/_components/customs/assign-draft-content.tsx:235` | `postTagByIdAssignTravellerApi` — `web-app/packages/actions/unirefund/TagService/post-actions.ts:44` | `client.tag.postApiTagServiceTagByIdAssignTraveller` | POST /api/tag-service/tag/{id}/assign-traveller | TagService.Tags, TagService.Tags.AssignTraveller | 17 | — |
-| A71 | Resolve a traveller from a scanned passport at the customs desk | Customs | Scan mode camera on the customs traveller search bar | `web-app/apps/web` | `/operations/tags` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tags/_components/traveller-search-bar.tsx:252` | `getTravellersByDocumentNumberApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:178`, called at `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tags/_components/traveller-search-bar.tsx:106` | `client.traveller.getApiTravellerServiceTravellersSearchByDocumentNumber` | GET /api/traveller-service/travellers/search/by-document-number | TravellerService.Travellers, TravellerService.Travellers.SearchByTravellerDocumentNumber | — | — |
+| A71 | Resolve a traveller from a scanned passport at the customs desk | Customs | Scan mode camera on the customs traveller search bar | `web-app/apps/web` | `/operations/tags` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tags/_components/traveller-search-bar.tsx:252` | `getTravellersByDocumentNumberApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:178`, called at `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tags/_components/traveller-search-bar.tsx:106` | `client.traveller.getApiTravellerServiceTravellersSearchByDocumentNumber` | GET /api/traveller-service/travellers/search/by-document-number | TravellerService.Travellers, TravellerService.Travellers.SearchByTravellerDocumentNumber | 23 | — |
 | A72 | Load the tags of the traveller under customs review | Customs | Traveller selected, and every refresh after a bulk assign | `web-app/apps/web` | `/operations/tags` | `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/tags/_components/customs-tags-workspace.tsx:95` | `getTagsApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:26` | `client.tag.getApiTagServiceTag` | GET /api/tag-service/tag | TagService.Tags, TagService.Tags.ViewList | — | — |
 | A73 | Require a registered kiosk device before a validate QR is shown | Customs | Kiosk page load, before any QR is generated | `web-app/apps/web` | `/qr` | `web-app/apps/web/src/app/[lang]/(external)/qr/page.tsx:17` | `getDevicesApi` — `web-app/packages/actions/unirefund/DeviceService/actions.ts:11` | `client.device.getApiDeviceServiceDevices` | GET /api/device-service/devices | DeviceService.Devices, DeviceService.Devices.ViewList | 20 | — |
 | A74 | Generate the rolling customs validate QR | Customs | Kiosk page load, once a kiosk device is present | `web-app/apps/web` | `/qr` | `web-app/apps/web/src/app/[lang]/(external)/qr/page.tsx:55` | `postCustomsValidationQrGenerateApi` — `web-app/packages/actions/unirefund/ExportValidationService/post-actions.ts:12`, called at `web-app/apps/web/src/app/[lang]/(external)/qr/_components/utils.ts:22` | `client.customsValidationQr.postApiExportValidationServiceCustomsValidationQrGenerate` | POST /api/export-validation-service/customs-validation-qr/generate | ExportValidationService.CustomsValidationQrs, ExportValidationService.CustomsValidationQrs.Generate | 20 | — |
@@ -133,3 +186,70 @@ rather than a QR action, so it takes no row; it is the precondition A73 checks.
 `decodeTagScan` and `isValidateScan`, which A41 and the bulk-scan rows decode
 with, come from `@unirefund/qr`, an external package rather than a file in this
 repository, so they have no `file:line` of their own here.
+
+## Actions — `web-app/apps/ssr`
+
+| ID | Action | Actor | Trigger | App | Route | UI entry | Client wrapper | SDK method | Endpoint | Permission | Cap # | Cell |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A77 | Look up a tag by typed tag number and passport number | Traveller, including logged out | Submit on the tag search form, and the fallback when a slug carries too little to look up | `web-app/apps/ssr` | `/tag`, `/tag/[slug]` | `web-app/apps/ssr/src/app/[lang]/(public)/tag/_components/tag-search-form.tsx:37`, `web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/page.tsx:247` | — | — | — client only | — | 9 | T3 |
+| A78 | Read the tag issued on a scanned sticker line | Traveller, including logged out | Sticker QR, whose slug carries a sticker line number | `web-app/apps/ssr` | `/tag/[slug]` | `web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/page.tsx:150` | `getPublicTagByStickerLineNumberApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:177` | `client.tagPublic.getApiTagServicePublicTagByStickerLineNumber` | GET /api/tag-service/public/tag/by-sticker-line-number | — anonymous | 2 | T2 |
+| A79 | Read a tag's public detail by tag number and traveller document | Traveller, including logged out | Tag QR carrying a tag number and a document number, or a typed lookup | `web-app/apps/ssr` | `/tag/[slug]` | `web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/page.tsx:182` | `getPublicTagApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:164` | `client.tagPublic.getApiTagServicePublicTag` | GET /api/tag-service/public/tag | — anonymous | 1, 9 | T3 |
+| A80 | Read an unclaimed draft tag's public detail by tag id | Traveller, including logged out | Tag QR whose tag has no traveller yet, so its slug carries no document number | `web-app/apps/ssr` | `/tag/[slug]` | `web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/page.tsx:216` | `getPublicTagByTagIdApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:192` | `client.tagPublic.getApiTagServicePublicTagByTagIdById` | GET /api/tag-service/public/tag/by-tag-id/{id} | — anonymous | 1, 3 | T3 |
+| A81 | Offer the claim only while the tag has no traveller | Traveller, including logged out | Public tag read returns an empty traveller block | `web-app/apps/ssr` | `/tag/[slug]` | `web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/page.tsx:126` | — | — | — client only | — | 3 | T2, T3 |
+| A82 | Claim an unclaimed draft tag from the scanned tag page | Traveller, authenticated | Claim tag button on the public tag details | `web-app/apps/ssr` | `/tag/[slug]` | `web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/_components/claim-tag-button.tsx:50` | `postTagTravellerSelfAssignApi` — `web-app/packages/actions/unirefund/TagService/post-actions.ts:58` | `client.tag.postApiTagServiceTagTravellerSelfAssign` | POST /api/tag-service/tag/traveller-self-assign | TagService.Tags, TagService.Tags.TravellerSelfAssign | 3 | T2, T3 |
+| A83 | Defer the claim through login and resume on the same tag | Traveller, logged out then authenticated | Log in to claim button, then the login redirect back to the same slug | `web-app/apps/ssr` | `/tag/[slug]`, `/login` | `web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/_components/claim-tag-button.tsx:29`, `web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/page.tsx:147` | — | — | — client only | — | 4 | T2, T3 |
+| A84 | Refuse a validate page opened without a scanned QR value | Traveller | Validate page opened with no qrValue, so no validate QR was scanned | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/page.tsx:51` | — | — | — client only | — | 5 | T1 |
+| A85 | Probe whether the session can still scan before trusting it | Traveller | Validate page load carrying a session cookie | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/page.tsx:32` | `getMyDocumentAffiliationsApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:123` | `client.traveller.getApiTravellerServiceTravellersMyDocumentAffiliations` | GET /api/traveller-service/travellers/my-document-affiliations | TravellerService.Travellers, TravellerService.Travellers.GetMyDocumentAffiliations | 5 | T1 |
+| A86 | Grant the device location, and carry it across the KYC login so the scan does not re-prompt | Traveller | Allow location button, on the validate flow and on the KYC gate ahead of it | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:231`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:84` | `saveValidateLocation` — `web-app/apps/ssr/src/app/[lang]/(public)/validate/validate-location-actions.ts:28`, `readValidateLocation` — `web-app/apps/ssr/src/app/[lang]/(public)/validate/validate-location-actions.ts:48` | — | — client only | — | 4, 5 | T1 |
+| A87 | Resolve whether the KYC-verified traveller already has an account | Traveller, logged out | Didit KYC completes on the validate gate or the login KYC route | `web-app/apps/ssr` | `/validate`, `/login/kyc` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:162`, `web-app/apps/ssr/src/app/[lang]/(auth)/login/kyc/didit.tsx:70` | `getApiTravellerServiceSsrPublicActionsGetEmailApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:107` | `client.ssrActionPublic.getApiTravellerServiceSsrPublicActionsGetEmail` | GET /api/traveller-service/ssr-public-actions/get-email | — anonymous | 4 | T1 |
+| A88 | Exchange the KYC session for an access token and sign in | Traveller, logged out then authenticated | KYC resolved an existing account | `web-app/apps/ssr` | `/validate`, `/login/kyc` | `web-app/apps/ssr/src/app/[lang]/(auth)/login/kyc/login-via-ssr-action.ts:20` | `getApiTravellerServiceSsrPublicActionsGetAccessTokenApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:134` | `client.ssrActionPublic.postApiTravellerServiceSsrPublicActionsGetAccessToken` | POST /api/traveller-service/ssr-public-actions/get-access-token | — anonymous | 4 | T1 |
+| A89 | Read the flight ticket from the boarding-pass barcode, or type it when it will not scan | Traveller, authenticated | Scan tab camera, or the manual tab, on the flight info step | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:313`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:362` | — | — | — client only | — | 6, 23 | T1 |
+| A90 | Run the airport self-validation scan | Traveller, authenticated | Flight ticket submitted after the location was granted | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:368` | `postQrEvidenceScanApi` — `web-app/packages/actions/unirefund/ExportValidationService/post-actions.ts:29`, called at `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:151` | `client.qrEvidence.postApiExportValidationServiceQrEvidenceByQrValueScan` | POST /api/export-validation-service/qr-evidence/{qrValue}/scan | — authenticated, no grant | 5 | T1 |
+| A91 | Enrich the scan result with each returned tag's detail | Traveller, authenticated | Every successful validation scan | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:166` | `getTagsCrossTenantsByTravellerIdClaimApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:87` | `client.tag.getApiTagServiceTagCrossTenantsByTravellerIdClaim` | GET /api/tag-service/tag/cross-tenants/by-traveller-id-claim | TagService.Tags, TagService.Tags.GetTagsByTravellerId | 5 | T1 |
+| A92 | Rescan a validate QR that expired mid-flow | Traveller, authenticated | Rescan button on the expired QR state, then the modal camera | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/rescan-qr-modal.tsx:77` | `postQrEvidenceScanApi` — `web-app/packages/actions/unirefund/ExportValidationService/post-actions.ts:29`, called at `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:346` | `client.qrEvidence.postApiExportValidationServiceQrEvidenceByQrValueScan` | POST /api/export-validation-service/qr-evidence/{qrValue}/scan | — authenticated, no grant | 7, 23 | T1 |
+| A93 | Scan a further tag's QR in the claim modal and read it by id | Traveller, authenticated | Scan tab camera in the claim tag modal | `web-app/apps/ssr` | `/validate`, `/tags` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/claim-tag-modal.tsx:264` | `getPublicTagByTagIdApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:192`, called at `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/claim-tag-modal.tsx:90` | `client.tagPublic.getApiTagServicePublicTagByTagIdById` | GET /api/tag-service/public/tag/by-tag-id/{id} | — anonymous | 3, 8, 23 | T1, T3 |
+| A94 | Claim a further tag from the claim modal | Traveller, authenticated | Confirm in the claim tag modal, after a scanned tag was read | `web-app/apps/ssr` | `/validate`, `/tags` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/claim-tag-modal.tsx:386` | `postTagTravellerSelfAssignApi` — `web-app/packages/actions/unirefund/TagService/post-actions.ts:58`, called at `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/claim-tag-modal.tsx:180` | `client.tag.postApiTagServiceTagTravellerSelfAssign` | POST /api/tag-service/tag/traveller-self-assign | TagService.Tags, TagService.Tags.TravellerSelfAssign | 3, 8 | T1, T3 |
+| A95 | Type a tag number and sales amount to claim without scanning | Traveller, authenticated | Manual tab in the claim tag modal | `web-app/apps/ssr` | `/validate`, `/tags` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/claim-tag-modal.tsx:319` | `postTagTravellerSelfAssignApi` — `web-app/packages/actions/unirefund/TagService/post-actions.ts:58`, called at `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/claim-tag-modal.tsx:142` | `client.tag.postApiTagServiceTagTravellerSelfAssign` | POST /api/tag-service/tag/traveller-self-assign | TagService.Tags, TagService.Tags.TravellerSelfAssign | 8, 9 | T1, T3 |
+| A96 | Re-run the validation scan after a claim so the new tag appears | Traveller, authenticated | Claim tag modal closes after at least one successful claim | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:336` | `postQrEvidenceScanApi` — `web-app/packages/actions/unirefund/ExportValidationService/post-actions.ts:29`, called at `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:151` | `client.qrEvidence.postApiExportValidationServiceQrEvidenceByQrValueScan` | POST /api/export-validation-service/qr-evidence/{qrValue}/scan | — authenticated, no grant | 8 | T1 |
+| A97 | List own tags across tenants | Traveller, authenticated | Tags page load, and every refresh after a claim | `web-app/apps/ssr` | `/tags` | `web-app/apps/ssr/src/app/[lang]/(main)/tags/page.tsx:19` | `getTagsCrossTenantsByTravellerIdClaimApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:87` | `client.tag.getApiTagServiceTagCrossTenantsByTravellerIdClaim` | GET /api/tag-service/tag/cross-tenants/by-traveller-id-claim | TagService.Tags, TagService.Tags.GetTagsByTravellerId | — | — |
+| A98 | Open the claim modal from the tags page, behind the self-assign grant | Traveller, authenticated | Claim button in the tags header, rendered only when the grant is held | `web-app/apps/ssr` | `/tags` | `web-app/apps/ssr/src/app/[lang]/(main)/tags/_components/tag-claim.tsx:14` | — | — | — client only | — | 3 | T3 |
+| A99 | Open one of the traveller's own tags by tag number | Traveller, authenticated | Tag row on the tags page | `web-app/apps/ssr` | `/tags/[tagNumber]` | `web-app/apps/ssr/src/app/[lang]/(main)/tags/[tagNumber]/page.tsx:11` | `getTagsCrossTenantsByTravellerIdClaimByTagNumberApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:103` | `client.tag.getApiTagServiceTagCrossTenantsByTravellerIdClaimByTagNumber` | GET /api/tag-service/tag/cross-tenants/by-traveller-id-claim/{tagNumber} | TagService.Tags, TagService.Tags.GetTagByTagNumberCrossTenants | — | — |
+
+Notes on this section.
+
+`apps/ssr` resolves a tag QR by **routing**, not by scanning. The code encodes
+`{ssrBaseUrl}/tag/{slug}`, so the traveller's own phone camera opens the browser
+and `/tag/[slug]` decodes the slug server-side. That is why A78, A79 and A80 name
+a route segment where the other two apps name a scanner component. The slug is
+reversible base64 of
+`{n:<tagNumber>,i:<tagId>,t:<travellerDocumentNumber>[,s:<stickerLineNumber>]}`,
+which is what lets one route serve three different reads: `s` present goes to
+A78, `n` plus `t` to A79, and `i` without `t` to A80. A sticker's printed QR is
+the `publicLink` on `StickerLineReportDto`; a tag's is the `publicLink` on
+`TagDetailDto`. Both are the same `/tag/{slug}` URL.
+
+SSR's only in-app cameras are the boarding-pass scanner (A89), the expired-QR
+rescan modal (A92) and the claim-tag modal's scan tab (A93). Everything else
+arrives as a URL the phone's own camera app opened.
+
+`Actor` is `Traveller` on every row. `apps/ssr` is the traveller app, and no
+staff role has a route in it.
+
+A86's `Client wrapper` names two SSR-local server actions rather than a
+generated client wrapper, and what they do is write and read an httpOnly cookie
+rather than call a service endpoint. Hence `— client only`, which the conventions
+define as "calls no endpoint" rather than "runs in the browser".
+
+Signing in with a username and password (`(auth)/login/page.tsx` →
+`login-form.tsx:60` → `signInServerApi`) takes no row of its own. It is not
+QR-triggered, and next-auth's credentials provider exchanges at the identity
+provider's token endpoint, which is not one of the SDK-described service
+endpoints `endpoints.md` joins against. The QR-triggered half of that round trip
+is A83, which is why A83 rather than a login row is what `/login` points at.
+
+The Claim tag nav link at `(public)/layout.tsx:138` is what reaches `/tag`, and
+it is rendered only while logged out. `(auth)/register`,
+`(auth)/reset-password`, `(auth)/logout`, `(main)/account` and
+`(public)/card-demo` reach no QR action and take no rows; nor do
+`(public)/explore`, which is a store map, or `(public)/page.tsx`, whose primary
+link goes to `/tags` or `/login` (`client.tsx:53`).
