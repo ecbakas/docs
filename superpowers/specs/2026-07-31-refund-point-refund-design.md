@@ -45,7 +45,9 @@ The one genuine gap: web reads the refund point's allowed refund methods from Co
 
 1. **Traveller-first, web parity.** A dedicated Refund screen: find the traveller, list their refundable tags, multi-select, pay. Not scan-first — one traveller commonly has several tags in one payout.
 2. **Generate ContractService.** Added to `src/saas/API_LIST.json` and regenerated, so mobile offers exactly the methods the refund point is contracted for. Rejected: hardcoding the enum (the UI would offer methods the backend rejects at submit) and cash-only (a card-only refund point could not use the app).
-3. **Method coverage matches web exactly.** Cash → paid-date picker. CreditCard → manual masked number + expiry, recording a payout already taken on the terminal. Any other contracted method is selectable with no extra form.
+3. **Method coverage matches web exactly.** Cash → paid date. CreditCard → manual masked number + expiry, recording a payout already taken on the terminal. Any other contracted method is selectable with no extra form.
+
+   **Amended after the design review:** web renders the paid date as an editable `DatePicker`, but `super-app` has no date-picker component and no date-picker dependency (`@react-native-community/datetimepicker` is not installed), and the UI rule discourages adding one for a single field. Mobile therefore stamps `paidDate` at submit time and displays it read-only. A refund point handing cash across a counter is paying out now; backdating stays a web/back-office affordance.
 4. **Success summary in place**, following `CreatedTagSummary`. No refund detail screen is built.
 5. **Both signatures optional**, identical to web policy.
 6. **One scrolling screen with a sticky bottom bar**, not a wizard and not two screens. The refund total stays visible while tags are being selected, and the whole flow is one hook's state.
@@ -120,7 +122,7 @@ isExportValidated segmented toggle              default true
 tags              fetched per query key         (documentNumber, method, isExportValidated)
 selectedTagIds    Set                           cleared whenever the query key changes
 signatures        { traveller?, refundPoint? }  file URIs until submit
-paidDate          Cash only                     defaults to now
+paidDate          Cash only                     stamped at submit, shown read-only
 card              CreditCard only               { number, mm, yy }
 createdRefund     set on success                swaps the form for RefundSuccess
 isSubmitting      submit guard
@@ -221,3 +223,4 @@ Gate before PR:
 - **Payout to a saved traveller card or bank token** — `travellerCardId` and `travellerBankTokenId` are in `CreateRefundDto` and the traveller Cards feature already vaults tokens. A mobile-native capability web does not expose, and a clean follow-up.
 - **Scanning a tag to pre-fill the flow.**
 - **OCR card capture** via the existing `CardScannerModal`.
+- **Backdating a cash payout** — would require a date-picker dependency this app does not have. See the amendment under decision 3.
