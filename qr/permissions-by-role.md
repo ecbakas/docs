@@ -251,7 +251,9 @@ finds what a given `apps/web` session actually holds.
 session at all: routing middleware
 (`web-app/packages/utils/auth/middleware.ts`) exempts `tag` and `validate` (among
 others) from its authentication redirect via `PUBLIC_ROUTES` in
-`apps/ssr/.env`, which is why A77–A81 and A84–A86 all work logged out. The claim
+`apps/ssr/.env`, which is why A77–A81, A84 and A86 work logged out. A85 does not:
+it needs both a token and `TravellerService.Travellers.GetMyDocumentAffiliations`,
+per its own row above. The claim
 path — KYC — additionally requires a **completed KYC session** before any token
 is issued: `login/kyc/didit.tsx` only calls `getApiTravellerServiceSsrPublicActionsGetEmailApi`
 (A87) once Didit reports a finished verification, and only then, if an account
