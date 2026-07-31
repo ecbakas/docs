@@ -23,9 +23,39 @@ single home — merchant create with/without traveller, refund-point create by
 sticker line, traveller claim by sticker or tag QR, merchant assign traveller,
 refund-point assign traveller, and any-party scan-to-view.
 
+## Primary purpose
+
+**The guide's first job is to be the API usage contract: which party must call
+which endpoint, and which endpoint they must not call.** Everything else — the
+perspective chapters, the permission grouping, the test flows — is a view onto
+that.
+
+This is the question the codebase keeps getting wrong, and it has the scars to
+prove it. Both apps once used the Refund Point's create endpoint for every role
+(`#29`); web called the Refund Point's merchant-info lookup for every role, which
+403'd for merchant staff (`#15`, alias `#26`). Neither was a coding error. Both
+were a *missing contract* — two endpoints answer the same question, and nothing
+said which party owns which.
+
+The failure mode is not obscure. Three separate endpoints today return something
+called "product groups":
+
+| Caller and need | Correct endpoint | Permission |
+| --- | --- | --- |
+| Merchant staff pricing a tag for their **own** store | `GET /api/crm-service/merchants/{id}/product-group` | `CRMService.Merchants.ViewProductGroupList` |
+| Refund Point pricing for a merchant it does **not** own | `GET /api/tag-service/sticker-header/sticker-line/{n}/merchant-info` | `TagService.StickerHeaders.ViewMerchantInfo` |
+| Admin maintaining the **global catalogue** | `SettingService` ProductGroups CRUD | `SettingService.ProductGroups.*` |
+
+The three are not interchangeable. `productGroupId` is the *global* id, while
+`isDefault` and `vatRate` come from the per-merchant relation — so the
+`SettingService` catalogue has no VAT rate to price an amount against, and the
+`TagService` projection is the only way a Refund Point gets a foreign merchant's
+rates at all. A reader must be able to look this up rather than infer it, which is
+what [`endpoints.md`](#endpoint-ownership) is for.
+
 ## Deliverable
 
-A guide in `docs/qr/`, eight files, joined by a permanent **action id**.
+A guide in `docs/qr/`, nine files, joined by a permanent **action id**.
 
 The guide is a reference document. It does not change application code. Where
 writing it uncovers a code defect, that defect is recorded (see
@@ -41,6 +71,7 @@ writing it uncovers a code defect, that defect is recorded (see
 | `refund-point.md` | Perspective chapter — `R1`/`R2`/`R3`. |
 | `customs.md` | Perspective chapter — the fourth party, web only. |
 | `actions-and-routes.md` | **The registry.** One row per action; the single source every other file joins against. |
+| `endpoints.md` | **The API usage contract.** Endpoint-first: intended caller, forbidden callers and why, the correct alternative for each, and the body contract per caller. Plus the overlapping-endpoint decision tables and the anti-pattern list. |
 | `permissions-by-role.md` | The registry re-grouped by role. |
 | `test-flows.md` | One QA-runnable flow per action id, plus a coverage table. |
 
@@ -61,13 +92,19 @@ Every action gets an id — `A01`, `A02`, … — assigned once.
 sets for its capability numbers, applied one level down. A withdrawn action keeps
 its id and is struck through; a new action takes the next free number.
 
-The id is the join key. An action appears in exactly four places, and a reviewer
-can prove coverage by checking that every id appears in all four:
+The id is the join key. An action appears in five places, and a reviewer can prove
+coverage by checking that every id appears in all five:
 
 1. one row in `actions-and-routes.md`,
 2. narrated in exactly one perspective chapter,
-3. under its role in `permissions-by-role.md`,
-4. as `TF-A##` in `test-flows.md`.
+3. in the `Actions` column of its endpoint's row in `endpoints.md`,
+4. under its role in `permissions-by-role.md`,
+5. as `TF-A##` in `test-flows.md`.
+
+The one exception is an action that calls no endpoint — classification, routing,
+the deferred-scan resume. Those are absent from `endpoints.md` **by rule**, and the
+registry marks them `Endpoint: — client only` so the absence is checkable rather
+than merely tolerated.
 
 Action ids sit **below** the capability numbers: several actions can serve one
 capability, and every action row cites the `#` it serves and, where the action is
@@ -202,6 +239,91 @@ Two consequences the guide must handle rather than hide:
 strings. They are used only to confirm that a permission named in an annotation
 actually exists — they say nothing about who holds it.
 
+## Endpoint ownership
+
+`endpoints.md` inverts the registry. The registry answers *"what does this action
+call?"*; this file answers *"who is allowed to call this, and what should everyone
+else call instead?"* — the [primary purpose](#primary-purpose).
+
+It is derived from the registry, not gathered separately, so the two cannot
+disagree. One row per endpoint.
+
+**How far it reaches.** This is a QR guide, not a full API reference, so the
+endpoint set is bounded by two rules:
+
+1. **Every endpoint a QR flow reaches** gets a full row. That is the registry's
+   `Endpoint` column, deduplicated.
+2. **Every endpoint that is a plausible *wrong answer* to one of those questions**
+   gets named — in a `Must not call` / `Instead use` cell or an overlapping-endpoint
+   table — but is **not** documented in full. `SettingService.ProductGroups` is the
+   type case: no QR flow calls it, and it is exactly what someone reaches for when
+   they need product groups. A contrast entry carries the endpoint, its permission,
+   and one line on why it is the wrong answer here. Nothing more.
+
+Everything else is out. `TagService` alone has 55+ methods and the QR flows touch
+perhaps half; risk configuration, refund operations and reporting get no rows, not
+even contrast entries, because no QR question leads to them.
+
+One row per endpoint:
+
+| Field | Meaning |
+| --- | --- |
+| `Endpoint` | `METHOD /path`. |
+| `Permission` | From the SDK annotation, or `— anonymous`. |
+| `Intended caller` | The party the endpoint exists for. |
+| `Also called by` | Other parties that legitimately call it, if any. |
+| `Must not call` | Parties that must not, **with the reason** — no grant, wrong DTO, or a side effect they must not cause. |
+| `Instead use` | The correct endpoint for each forbidden caller. Empty only when there genuinely is no alternative. |
+| `Actions` | The action ids that reach it. |
+| `Body contract` | What the body must and must not carry, **per caller**, where callers differ. |
+
+`Must not call` is the field that earns the file. A reason of "no grant" is
+verifiable from the annotation; "wrong DTO" and "causes a side effect" are not, and
+those are where the real traps are:
+
+- `POST /tag/by-sticker-line` takes `CreateTagByStickerLineRequestDto`, which has
+  **no merchant-signature field**. A merchant calling it does not get a worse
+  result — it silently drops a signature they captured. That is a DTO fact, not a
+  permission fact, and no 403 will ever tell you.
+- `merchantId` on the Refund Point path is **ignored by the backend once the sticker
+  line is allocated**, and sending it on an *unallocated* line allocates the whole
+  sticker header to that merchant, permanently. Same field, two completely
+  different consequences depending on state.
+
+### Overlapping endpoints
+
+A short set of decision tables, one per question that more than one endpoint
+answers, in the form *"I need X as party P → call this"*. The product-groups table
+in [Primary purpose](#primary-purpose) is the worked example. The others to write:
+
+- **Resolve a merchant's identity** — the sticker line's own
+  `merchantName`/`vatNumber` fields, `TagService` merchant-info, CRM merchant
+  detail, and `GET /tag/merchants-for-creation`. Four sources, and which is correct
+  depends on whether the caller owns the merchant and whether the book is allocated.
+- **Look up a tag** — by id, by tag number, by encrypted tag number, or through
+  `public/tag*`. Four routes to one entity, split by whether the caller is
+  authenticated and whether the id is being used as a credential.
+- **Create a tag** — `POST /tag` versus `POST /tag/by-sticker-line`, which is
+  capability `#29` and already decided; recorded here so the decision is findable
+  from the endpoint rather than only from the catalogue.
+- **Assign a traveller** — `POST /tag/{id}/assign-traveller` versus the two
+  `traveller-self-assign` endpoints. Staff-assigns-traveller and
+  traveller-claims-own-tag are different operations with different permissions, and
+  the names do not make that obvious.
+
+### Anti-patterns
+
+A list of wrong-endpoint usages that have actually happened, each with the symptom,
+the reason and the correct call. Seeded from the two the codebase already records —
+every role posting to `by-sticker-line` (`#29`), and every role calling
+merchant-info (`#15`/`#26`) — and extended with anything
+[Findings](#findings) turns up.
+
+This section is deliberately historical. A reader who is about to make the same
+choice recognises the symptom faster than they recognise the rule, so the entry
+leads with what goes wrong ("403 for merchant staff on a lookup that works for a
+Refund Point") rather than with the principle.
+
 ## Permissions by role
 
 `permissions-by-role.md` re-groups the registry. Per role: the permissions that
@@ -291,7 +413,8 @@ verification is outstanding, `test-flows.md` links to that rather than restating
 
 ## Findings
 
-Writing this guide means reading four chains end to end across three apps, which
+Writing this guide means walking the same four-step chain end to end for every one
+of 40–50 actions across three apps, which
 will surface discrepancies: a control gated on a permission its endpoint does not
 require, an endpoint whose requirement no UI checks, a stale SDK generation, a
 route that outlived its capability entry.
@@ -316,11 +439,19 @@ assumed:
    re-checked against the SDK. A row that cannot be re-derived is removed or
    marked, not left standing.
 2. **Join integrity.** Every action id appears in the registry, exactly one
-   perspective chapter, `permissions-by-role.md`, and `test-flows.md`. Any id
-   missing from any of the four is a defect in the guide.
-3. **No unresolved placeholders.** No `TBD`, no empty `Permission` cell, no
+   perspective chapter, `endpoints.md`, `permissions-by-role.md`, and
+   `test-flows.md`. Any id missing from any of the five is a defect in the guide,
+   except a `— client only` action, which is exempt from `endpoints.md` alone.
+3. **Endpoint coverage both ways.** Every endpoint named in the registry has a row
+   in `endpoints.md`, and every row's `Actions` column is non-empty. An endpoint
+   with no action reaching it means either a missed action or a dead endpoint —
+   both are [Findings](#findings), not rows to delete.
+4. **Every `Must not call` names an `Instead use`,** or states outright that no
+   alternative exists. A forbidden caller with no stated alternative is the single
+   most useless thing this guide could contain.
+5. **No unresolved placeholders.** No `TBD`, no empty `Permission` cell, no
    "verify this later".
-4. **Every file carries `Verified against:`** — the date plus the commit surveyed
+6. **Every file carries `Verified against:`** — the date plus the commit surveyed
    for each of the three apps, so a later reader can tell how stale it is.
 
 ## Risks
@@ -328,8 +459,10 @@ assumed:
 | Risk | Handling |
 | --- | --- |
 | The guide drifts as code changes, and a stale guide is worse than none. | `Verified against:` lines per file; permanent ids so a later pass can diff rather than rewrite; the registry is the only place a fact lives, so an update has one home. |
-| It restates `QR.md` and the two diverge. | Strict division: `QR.md` owns capability numbers, per-app support and decisions; the guide owns routes, actions, permissions and tests, and cites capability numbers rather than copying their status. The ✅/❌ marks are never duplicated into the guide. |
-| Eight files fragment the reading experience. | `README.md` is a real index — action-id index plus route→action index — so any entry point is one hop from the answer. |
+| It restates `QR.md` and the two diverge. | Strict division: `QR.md` owns capability numbers, per-app support and decisions; the guide owns routes, actions, endpoint ownership, permissions and tests, and cites capability numbers rather than copying their status. The ✅/❌ marks are never duplicated into the guide. |
+| Nine files fragment the reading experience. | `README.md` is a real index — action-id index plus a link to the route→action index — so any entry point is one hop from the answer. |
+| `endpoints.md` drifts from the registry and starts contradicting it. | It is **derived** from the registry rather than gathered independently, and verification step 3 checks the correspondence in both directions. If the two ever disagree, the registry wins. |
+| The `Instead use` column becomes stale advice that sends readers to a wrong endpoint — worse than no advice. | Every `Instead use` cell names an endpoint that has its own row in the same file, so a removed endpoint cannot be silently pointed at. `Verified against:` bounds how far it can drift unnoticed. |
 | Effort is spent documenting dead surfaces. | `new-old/` and the disabled refund tag-panel are named as dead once and not documented; the inventory rule excludes admin-side tag lifecycle work outright. |
 | Test flows cannot be run without fixtures nobody has. | Preconditions are stated in test-data terms up front, in a shared preamble, so the missing fixture is visible before someone starts a flow rather than three steps in. |
 
