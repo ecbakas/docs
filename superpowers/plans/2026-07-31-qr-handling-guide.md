@@ -1319,8 +1319,12 @@ tenth artifact, `_verify/check.mjs`. It is tooling, not guide content, which is 
 sits under `_verify/` and is excluded from the `GUIDE` list the checker itself walks.
 
 **Type consistency.** The marker strings `— client only`, `— contrast`, `— anonymous`
-are declared once in Global Constraints and used identically in the checker (as
-`—` escapes, so the file is ASCII-safe) and in Tasks 2–5. The registry header is
+are declared once in Global Constraints and used identically in the checker and in
+Tasks 2–5. They are **literal U+2014 em dashes** in `check.mjs`'s `CLIENT_ONLY` and
+`CONTRAST` constants, so the file is UTF-8, not ASCII — write it with UTF-8 encoding
+and do not substitute a hyphen. This was exercised: a fixture whose `Endpoint` cell
+read `— client only` was correctly rejected when it also appeared in `endpoints.md`.
+The registry header is
 written identically in Tasks 2, 3 and 4. Check names — `files`, `stamps`,
 `placeholders`, `registry`, `perspectives`, `endpoints`, `permissions`, `testflows` —
 match between the checker's `checks` object and every `Run:` line. `TF-A##` heading
