@@ -62,8 +62,18 @@ const ACTOR_COUNT = (cell) => {
     .filter((s) => PARTY_CHAPTER.has(s));
   return named.length;
 };
-const ID_RE = /^A\d{2}$/;
-const ID_ANYWHERE = /\bA\d{2}\b/g;
+/**
+ * Action ids are `A` plus two or three digits — `A01` through `A999`.
+ *
+ * Two digits were the original rule, and it silently became a design constraint:
+ * Task 4 merged three row pairs to land inside `A99` rather than exceed it, which
+ * is the tooling deciding the deliverable's granularity. Worse, `A100` would have
+ * *partly* matched `\bA\d{2}\b` and gone half-visible to the cross-file joins.
+ * Both patterns take 2-3 digits, greedily, so `A100` reads as one id and not as
+ * `A10` followed by a stray `0`.
+ */
+const ID_RE = /^A\d{2,3}$/;
+const ID_ANYWHERE = /\bA\d{2,3}\b/g;
 
 const failures = [];
 const fail = (msg) => failures.push(msg);
@@ -152,7 +162,7 @@ function loadRegistry() {
   for (const cells of rows) {
     const id = cells[0];
     if (!ID_RE.test(id)) {
-      fail(`actions-and-routes.md: bad action id "${id}" (want A## )`);
+      fail(`actions-and-routes.md: bad action id "${id}" (want A## or A###)`);
       continue;
     }
     if (ids.has(id)) fail(`actions-and-routes.md: duplicate action id ${id}`);
