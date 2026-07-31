@@ -216,13 +216,24 @@ the chain is stated in `README.md` so a reader can re-run it on any row:
 The generated SDK is the authority for what a permission is called and which
 endpoint needs it. `TagService` alone carries 52 such annotations.
 
-**Absence of the annotation means the endpoint is anonymous, and the row says so
-explicitly.** This is load-bearing, not an omission: `TagPublicService` carries no
-annotations, and `getApiTagServicePublicTagByTagIdById` documents why in its own
-comment — *"Anonymous — the unguessable Guid id is the credential."* The
-traveller's whole scan-before-login path rests on it, so a reader must be able to
-tell "no permission needed" from "permission not yet looked up". The guide never
-leaves that cell blank.
+**Absence of the annotation means no *permission* is required — which is not the same
+as anonymous.** The guide never leaves that cell blank, and distinguishes two cases,
+because a reader's first question is whether they must be logged in:
+
+- `— anonymous` — no token at all. `TagPublicService` carries no annotations, and
+  `getApiTagServicePublicTagByTagIdById` documents why in its own comment:
+  *"Anonymous — the unguessable Guid id is the credential."* The traveller's whole
+  scan-before-login path rests on this.
+- `— authenticated, no grant` — a token is required, no permission gates it.
+  `POST /api/export-validation-service/qrEvidence/{qrValue}/scan` is the case:
+  unannotated, but *"the traveller scans the kiosk's QR with their own authenticated
+  device. The current user's TravellerDocumentId claim identifies whose tags to
+  clear"*, and it documents 401/403. Its sibling `.../scanWithTravellerInfo` **is**
+  annotated, with `ExportValidationService.QrEvidence.ScanWithTravellerInfo`.
+
+Which case applies is read from the method's own doc comment and its documented status
+codes, not assumed from the missing annotation. *(Corrected 2026-07-31 during Task 2,
+which found the second case and correctly refused to record it as anonymous.)*
 
 Two consequences the guide must handle rather than hide:
 

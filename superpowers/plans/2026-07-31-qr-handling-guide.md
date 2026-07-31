@@ -18,9 +18,11 @@
 - **Marker strings are exact.** The checker string-matches them:
   - registry `Endpoint` cell for an action that calls no endpoint: `— client only`
   - `endpoints.md` `Actions` cell for a contrast-only row: `— contrast`
-  - a permission cell for an unauthenticated endpoint: `— anonymous`
+  - a permission cell for an endpoint needing **no token at all**: `— anonymous`
+  - a permission cell for an endpoint needing a **token but no grant**: `— authenticated, no grant`
   - an intentionally-not-applicable cell: `—`
   - All use U+2014 EM DASH, matching the rest of `docs/`.
+- **A missing `**Requires permissions:**` line means "no permission required" — which is not the same as anonymous.** Decide which of the two markers applies by reading the method's own doc comment and its documented status codes. Ruled 2026-07-31 after Task 2 found the case: `POST /api/export-validation-service/qrEvidence/{qrValue}/scan` carries no annotation, yet its comment reads *"the traveller scans the kiosk's QR with their own authenticated device. The current user's TravellerDocumentId claim identifies whose tags to clear"* and it lists 401/403 — so it needs a login and `— anonymous` would be false. Its sibling `.../scanWithTravellerInfo` **is** annotated (`ExportValidationService.QrEvidence.ScanWithTravellerInfo`). `TagPublicService` is the genuinely anonymous case; one of its methods says so outright.
 - **Every one of the nine files carries a `Verified against:` line** — the date plus the commit surveyed for each of the three apps. Get commits with `git -C <app> rev-parse --short HEAD`.
 - **No placeholders.** The checker fails the build on `TBD`, `TODO`, `FIXME`, `fill in later`, `verify this later`.
 - **In `endpoints.md`, only the main endpoint table may use `Endpoint` as its first header cell.** The overlapping-endpoint and anti-pattern tables must lead with a different column name, or the parser will absorb their rows.
@@ -79,9 +81,13 @@ Two near-identical endpoints, two permissions, two credential models. That prose
 the source for `endpoints.md`'s `Intended caller` and `Must not call` columns. **Read
 the whole doc comment, not just the permission line.**
 
-**Absence of a `**Requires permissions:**` line means the endpoint is anonymous.**
-Write `— anonymous`, never leave it blank. `TagPublicService`'s three methods are the
-case that matters; one of them says why in its own comment.
+**Absence of a `**Requires permissions:**` line means no *permission* is required — it
+does not mean no *token* is required.** Never leave the cell blank, and pick between
+the two markers by reading the doc comment and the documented status codes:
+`— anonymous` for an endpoint that needs no token (`TagPublicService`, one of whose
+methods says outright that the unguessable Guid id is the credential), and
+`— authenticated, no grant` for one that needs a login but holds no permission gate
+(the airport self-validation scan — see Global Constraints for the worked case).
 
 **Cross-check both SDK copies.** `super-app/src/saas/` and `web-app/packages/saas/`
 are separate generations — both currently carry 52 `TagService` annotations. Where an
