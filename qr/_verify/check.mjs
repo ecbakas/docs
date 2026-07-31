@@ -36,14 +36,31 @@ const ANON = "— anonymous";
 const AUTH_NO_GRANT = "— authenticated, no grant";
 /** Every marker a Permission cell may hold. Anything else must be a real permission string. */
 const PERM_MARKERS = [NA, ANON, AUTH_NO_GRANT];
+/** The parties that have a perspective chapter of their own. Order matches PERSPECTIVES. */
+const PARTY_CHAPTER = new Map([
+  ["traveller", "traveller.md"],
+  ["merchant", "merchant.md"],
+  ["refund point", "refund-point.md"],
+  ["customs", "customs.md"],
+]);
+
 /**
- * How many parties an Actor cell names, so a cross-role action may be narrated in
- * that many chapters. "Anyone" is every party, not one — it is what the registry
- * uses for the shared scanner, which all four chapters legitimately describe.
+ * How many perspective chapters an Actor cell entitles an action to appear in, so a
+ * cross-role action may be narrated by each party that performs it.
+ *
+ * Only parties that HAVE a chapter count. "Admin" is a real actor with no chapter of
+ * its own, so counting it would hand the row a chapter of headroom that does not
+ * exist — over-permissive, and silent. "Anyone" is every party, not one; it is what
+ * the registry uses for the shared scanner, which all four chapters legitimately
+ * describe.
  */
 const ACTOR_COUNT = (cell) => {
   if (/^anyone$/i.test(cell.trim())) return PERSPECTIVES.length;
-  return cell.split(",").map((s) => s.trim()).filter(Boolean).length;
+  const named = cell
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => PARTY_CHAPTER.has(s));
+  return named.length;
 };
 const ID_RE = /^A\d{2}$/;
 const ID_ANYWHERE = /\bA\d{2}\b/g;
