@@ -197,9 +197,11 @@ selectable symbologies — on a real device. [`test-flows.md`](test-flows.md) na
 that screen in its test-data preamble.
 
 `pos-app` gets **no** action rows and **no** endpoint rows anywhere in this guide.
-It is named where it produces or reads a code, as above, but nothing in the
-registry, [`endpoints.md`](endpoints.md), [`permissions-by-role.md`](permissions-by-role.md),
-the perspective chapters or [`test-flows.md`](test-flows.md) covers it.
+It is named where it produces or reads a code, as above, and once in passing in
+[`endpoints.md`](endpoints.md) — as one of the three `saas` trees searched for a
+permissioned but ungenerated SDK method — but no row in the registry, in
+`endpoints.md`, in [`permissions-by-role.md`](permissions-by-role.md), in the
+perspective chapters or in [`test-flows.md`](test-flows.md) is about it.
 
 ## How each app resolves a QR
 
