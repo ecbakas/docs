@@ -257,8 +257,14 @@ is issued: `login/kyc/didit.tsx` only calls `getApiTravellerServiceSsrPublicActi
 (A87) once Didit reports a finished verification, and only then, if an account
 already exists, calls through to `getApiTravellerServiceSsrPublicActionsGetAccessTokenApi`
 (A88), whose result feeds `signIn("ssr-token", ...)` against the `ssr-token`
-Credentials provider in `auth.ts` — there is no route to a session in this app
-that skips KYC. `apps/ssr` shares the same `GrantedPoliciesProvider` package as
+Credentials provider in `auth.ts`. That is the route for a traveller who does not
+have an account yet; it is **not** the only route to a session. `/login` also
+renders a live username-and-password form, whose submit
+(`web-app/apps/ssr/src/components/auth/login-form.tsx:147`) calls
+`signInServerApi` (`:60`) with the username (`:107`) and password (`:135`) it
+collected, and signing in with KYC is an *alternative* link beside it (`:157`) — so
+a traveller who already has a password reaches a session with neither A87 nor A88
+running at all. `apps/ssr` shares the same `GrantedPoliciesProvider` package as
 `apps/web`, populated in `web-app/apps/ssr/src/providers/providers.tsx:50-55` —
 the same `useGrantedPolicies()` / `isActionGranted()` pair reads it, and it is
 what gates the single ungrantable UI check in this app, the claim button in
