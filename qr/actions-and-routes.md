@@ -59,7 +59,7 @@ column is what tells them apart.
 | `/tag/[slug]` | `web-app/apps/ssr` | A77, A78, A79, A80, A81, A82, A83 |
 | `/login` | `web-app/apps/ssr` | A83 |
 | `/login/kyc` | `web-app/apps/ssr` | A87, A88 |
-| `/validate` | `web-app/apps/ssr` | A84, A85, A86, A87, A88, A89, A90, A91, A92, A93, A94, A95, A96, A100, A101 |
+| `/validate` | `web-app/apps/ssr` | A84, A85, A86, A87, A88, A89, A90, A91, A92, A93, A94, A95, A96, A100, A101, A102 |
 | `/tags` | `web-app/apps/ssr` | A93, A94, A95, A97, A98 |
 | `/tags/[tagNumber]` | `web-app/apps/ssr` | A99 |
 
@@ -204,7 +204,7 @@ repository, so they have no `file:line` of their own here.
 | A85 | Probe whether the session can still scan before trusting it | Traveller | Validate page load carrying a session cookie | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/page.tsx:32` | `getMyDocumentAffiliationsApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:123` | `client.traveller.getApiTravellerServiceTravellersMyDocumentAffiliations` | GET /api/traveller-service/travellers/my-document-affiliations | TravellerService.Travellers, TravellerService.Travellers.GetMyDocumentAffiliations | 5 | T1 |
 | A86 | Grant the device location for the validation scan | Traveller | Allow location button, on the validate flow and on the KYC gate ahead of it | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:231`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:84` | — | — | — client only | — | 5 | T1 |
 | A87 | Resolve whether the KYC-verified traveller already has an account | Traveller, logged out | Didit KYC completes on the validate gate or the login KYC route | `web-app/apps/ssr` | `/validate`, `/login/kyc` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:162`, `web-app/apps/ssr/src/app/[lang]/(auth)/login/kyc/didit.tsx:70` | `getApiTravellerServiceSsrPublicActionsGetEmailApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:107` | `client.ssrActionPublic.getApiTravellerServiceSsrPublicActionsGetEmail` | GET /api/traveller-service/ssr-public-actions/get-email | — anonymous | 4 | T1 |
-| A88 | Exchange the KYC session for an access token and sign in | Traveller, logged out then authenticated | KYC resolved an existing account | `web-app/apps/ssr` | `/validate`, `/login/kyc` | `web-app/apps/ssr/src/app/[lang]/(auth)/login/kyc/login-via-ssr-action.ts:20` | `getApiTravellerServiceSsrPublicActionsGetAccessTokenApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:134` | `client.ssrActionPublic.postApiTravellerServiceSsrPublicActionsGetAccessToken` | POST /api/traveller-service/ssr-public-actions/get-access-token | — anonymous | 4 | T1 |
+| A88 | Exchange the KYC session for an access token and sign in | Traveller, logged out then authenticated | KYC resolved an existing account | `web-app/apps/ssr` | `/validate`, `/login/kyc` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:177`, `web-app/apps/ssr/src/app/[lang]/(auth)/login/kyc/didit.tsx:81`, `web-app/apps/ssr/src/app/[lang]/(auth)/login/kyc/login-via-ssr-action.ts:20` | `getApiTravellerServiceSsrPublicActionsGetAccessTokenApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:134` | `client.ssrActionPublic.postApiTravellerServiceSsrPublicActionsGetAccessToken` | POST /api/traveller-service/ssr-public-actions/get-access-token | — anonymous | 4 | T1 |
 | A89 | Scan the boarding pass for the flight ticket | Traveller, authenticated | Scan tab camera on the flight info step | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:313` | — | — | — client only | — | 6, 23 | T1 |
 | A90 | Run the airport self-validation scan | Traveller, authenticated | Flight ticket submitted after the location was granted | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:368` | `postQrEvidenceScanApi` — `web-app/packages/actions/unirefund/ExportValidationService/post-actions.ts:29`, called at `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:151` | `client.qrEvidence.postApiExportValidationServiceQrEvidenceByQrValueScan` | POST /api/export-validation-service/qr-evidence/{qrValue}/scan | — authenticated, no grant | 5 | T1 |
 | A91 | Enrich the scan result with each returned tag's detail | Traveller, authenticated | Every successful validation scan | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:166` | `getTagsCrossTenantsByTravellerIdClaimApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:87` | `client.tag.getApiTagServiceTagCrossTenantsByTravellerIdClaim` | GET /api/tag-service/tag/cross-tenants/by-traveller-id-claim | TagService.Tags, TagService.Tags.GetTagsByTravellerId | 5 | T1 |
@@ -217,7 +217,8 @@ repository, so they have no `file:line` of their own here.
 | A98 | Open the claim modal from the tags page, behind the self-assign grant | Traveller, authenticated | Claim button in the tags header, rendered only when the grant is held | `web-app/apps/ssr` | `/tags` | `web-app/apps/ssr/src/app/[lang]/(main)/tags/_components/tag-claim.tsx:14` | — | — | — client only | — | 3 | T3 |
 | A99 | Open one of the traveller's own tags by tag number | Traveller, authenticated | Tag row on the tags page | `web-app/apps/ssr` | `/tags/[tagNumber]` | `web-app/apps/ssr/src/app/[lang]/(main)/tags/[tagNumber]/page.tsx:11` | `getTagsCrossTenantsByTravellerIdClaimByTagNumberApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:103` | `client.tag.getApiTagServiceTagCrossTenantsByTravellerIdClaimByTagNumber` | GET /api/tag-service/tag/cross-tenants/by-traveller-id-claim/{tagNumber} | TagService.Tags, TagService.Tags.GetTagByTagNumberCrossTenants | — | — |
 | A100 | Type the flight ticket when there is no readable boarding pass | Traveller, authenticated | Manual tab on the flight info step | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:297`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:362` | — | — | — client only | — | 5 | T1 |
-| A101 | Carry the pre-KYC location across the login so the scan step does not re-prompt | Traveller, logged out then authenticated | KYC completes with a location already granted, then the return to the validate page | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:159`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/page.tsx:67` | `saveValidateLocation` — `web-app/apps/ssr/src/app/[lang]/(public)/validate/validate-location-actions.ts:28`, `readValidateLocation` — `web-app/apps/ssr/src/app/[lang]/(public)/validate/validate-location-actions.ts:48` | — | — client only | — | 4, 5 | T1 |
+| A101 | Carry the pre-KYC location across the login so the scan step does not re-prompt | Traveller, logged out then authenticated | KYC completes with a location already granted, then the return to the validate page | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:159`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/page.tsx:67` | `saveValidateLocation` — `web-app/apps/ssr/src/app/[lang]/(public)/validate/validate-location-actions.ts:28`, `readValidateLocation` — `web-app/apps/ssr/src/app/[lang]/(public)/validate/validate-location-actions.ts:48` | — | — client only | — | 5 | T1 |
+| A102 | Open the claim modal from the validation results | Traveller, authenticated | Claim tag button beneath the results, rendered only once a scan has validated | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/validate-client.tsx:202`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/validate-client.tsx:207` | — | — | — client only | — | 8 | T1 |
 
 Notes on this section.
 
@@ -268,12 +269,24 @@ Capability `#6` in `docs/QR.md` is specifically the BCBP scan, so A100 carries
 `#5` — the self-validation flow it is a step of. Typed flight entry has no
 capability number of its own in that catalogue.
 
-Signing in with a username and password (`(auth)/login/page.tsx` →
-`login-form.tsx:60` → `signInServerApi`) takes no row of its own. It is not
+Signing in with a username and password takes no row of its own:
+`web-app/apps/ssr/src/app/[lang]/(auth)/login/page.tsx:14` renders
+`web-app/apps/ssr/src/components/auth/login-form.tsx`, whose `onSubmit` calls
+`signInServerApi` at `web-app/apps/ssr/src/components/auth/login-form.tsx:60`,
+which is `signIn("credentials")` in
+`web-app/packages/actions/core/AccountService/actions.ts:38`. That is not
 QR-triggered, and next-auth's credentials provider exchanges at the identity
 provider's token endpoint, which is not one of the SDK-described service
 endpoints `endpoints.md` joins against. The QR-triggered half of that round trip
 is A83, which is why A83 rather than a login row is what `/login` points at.
+
+`ClaimTagModal` has exactly two openers, one per route view, and each has its own
+row: A102 under the validation results (`validate-client.tsx:207`, reachable only
+while `state === "validated" && scanResult` at `:196`) and A98 in the tags header
+(`tag-claim.tsx:25`). Only A98's is gated on a grant — the single
+`isActionGranted` call in `apps/ssr` (`tag-claim.tsx:14`). A93, A94 and A95 are
+the modal's interior and are reached through either opener, which is why they
+carry both routes.
 
 The Claim tag nav link at `(public)/layout.tsx:138` is what reaches `/tag`, and
 it is rendered only while logged out. `(auth)/register`,
