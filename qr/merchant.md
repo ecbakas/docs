@@ -253,15 +253,42 @@ for the coupling rule, cited there against these same two call sites
 apps compute the same conditional independently: `args.traveller ? "Issued" :
 "Draft"` and `hasTraveller ? "Issued" : "Draft"`.
 
-**Merchants capture both signatures.** The merchant pad renders whenever the
-operator is a merchant, regardless of whether a traveller is attached; the
-traveller pad renders only once a traveller is:
-`SignaturePads`'s `targets={isMerchant ? ["merchant", "traveller"] :
-["traveller"]}` (`super-app/src/screens/staff/StickerTag/StickerTagScreen.tsx:490`–`499`)
-and `web-app`'s merchant pad gated on `isMerchantUser` alone
-(`client.tsx:911`–`918`, with the traveller signature captured separately
-inside the traveller-attach dialog). `A21` and `A54` are these two capture
-actions, one per app.
+**Merchants capture a traveller signature and, if they are the merchant, their
+own — but "the pad is available" and "the value reaches the request" are
+different claims, and an earlier draft of this chapter conflated them.** On
+both apps, the **traveller** signature control is present regardless of role
+and regardless of whether a traveller has been attached yet:
+`super-app`'s `targets={isMerchant ? ["merchant", "traveller"] :
+["traveller"]}` puts `"traveller"` in **both** branches of that ternary
+(`super-app/src/screens/staff/StickerTag/StickerTagScreen.tsx:490`–`499`),
+and `SignaturePads` itself renders whichever targets it is given, with no
+check on traveller attachment anywhere in the component
+(`super-app/src/screens/shared/_components/tag-calculator/SignaturePads.tsx:18`–`61`).
+On `web-app`, the traveller-signature button lives inside `TravellerForm`,
+which `AddTravellerDialog` renders unconditionally — not only once
+`hasTraveller` is true (`traveller-form.tsx:164`–`177`;
+`add-traveller-dialog.tsx:122`–`128`). Only the **merchant** pad is
+role-gated: `isMerchant` on `super-app` (`StickerTagScreen.tsx:497`) and
+`isMerchantUser` on `web-app` (`client.tsx:911`).
+
+What genuinely depends on a traveller being attached — and here the two apps
+diverge — is whether a captured traveller signature reaches the **create
+request**. `web-app` withholds it explicitly at both create call sites:
+`travellerSignatureBase64: hasTraveller ? travellerSignature?.split(",")[1] :
+undefined` (`client.tsx:686`–`688`, `701`–`703`). `super-app` has no
+equivalent gate: `useStickerTag`'s `submit()` converts whatever is in
+`signatures.traveller` to base64 unconditionally
+(`useStickerTag.ts:130`–`134`), and both request builders include it whenever
+that value is merely **non-empty**, never checking `args.traveller`
+(`stickerTag.logic.ts:160`–`162`, `234`–`236`). So on `super-app`, signing the
+traveller pad without ever attaching a traveller sends that signature on a
+`Draft` tag with no traveller on it — a combination `web-app` cannot produce.
+`web-app` also guards against a signature going *stale* across a traveller
+change, which `super-app` does not: `TravellerForm` clears its own saved
+signature the instant the attached traveller changes or is cleared
+(`traveller-form.tsx:63`–`82`, "a signature belongs to the traveller who gave
+it"), a safeguard nothing in `super-app`'s cart state reproduces. `A21` and
+`A54` are these two capture actions, one per app.
 
 **Attaching a traveller before create (`A11`/`A53`).** A merchant can search
 for a traveller by document number and attach them to the in-progress sale
