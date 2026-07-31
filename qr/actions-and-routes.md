@@ -26,7 +26,9 @@ A `— client only` action calls no endpoint, so there is nothing there to be
 anonymous about. Those rows take `—` in `Permission` — the marker for a cell that
 is intentionally not applicable — never `— anonymous`. Several of them are
 reachable only inside an authenticated session; that requirement lives in the
-`Actor` cell, which is where a row states who may perform it.
+`Actor` cell, which is where a row states who may perform it. `— client only`
+means no *service endpoint*, not "runs in the browser": a server action that only
+reads or writes a cookie takes it too (A101).
 
 ## Route → action
 
@@ -57,7 +59,7 @@ column is what tells them apart.
 | `/tag/[slug]` | `web-app/apps/ssr` | A77, A78, A79, A80, A81, A82, A83 |
 | `/login` | `web-app/apps/ssr` | A83 |
 | `/login/kyc` | `web-app/apps/ssr` | A87, A88 |
-| `/validate` | `web-app/apps/ssr` | A84, A85, A86, A87, A88, A89, A90, A91, A92, A93, A94, A95, A96 |
+| `/validate` | `web-app/apps/ssr` | A84, A85, A86, A87, A88, A89, A90, A91, A92, A93, A94, A95, A96, A100, A101 |
 | `/tags` | `web-app/apps/ssr` | A93, A94, A95, A97, A98 |
 | `/tags/[tagNumber]` | `web-app/apps/ssr` | A99 |
 
@@ -200,10 +202,10 @@ repository, so they have no `file:line` of their own here.
 | A83 | Defer the claim through login and resume on the same tag | Traveller, logged out then authenticated | Log in to claim button, then the login redirect back to the same slug | `web-app/apps/ssr` | `/tag/[slug]`, `/login` | `web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/_components/claim-tag-button.tsx:29`, `web-app/apps/ssr/src/app/[lang]/(public)/tag/[slug]/page.tsx:147` | — | — | — client only | — | 4 | T2, T3 |
 | A84 | Refuse a validate page opened without a scanned QR value | Traveller | Validate page opened with no qrValue, so no validate QR was scanned | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/page.tsx:51` | — | — | — client only | — | 5 | T1 |
 | A85 | Probe whether the session can still scan before trusting it | Traveller | Validate page load carrying a session cookie | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/page.tsx:32` | `getMyDocumentAffiliationsApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:123` | `client.traveller.getApiTravellerServiceTravellersMyDocumentAffiliations` | GET /api/traveller-service/travellers/my-document-affiliations | TravellerService.Travellers, TravellerService.Travellers.GetMyDocumentAffiliations | 5 | T1 |
-| A86 | Grant the device location, and carry it across the KYC login so the scan does not re-prompt | Traveller | Allow location button, on the validate flow and on the KYC gate ahead of it | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:231`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:84` | `saveValidateLocation` — `web-app/apps/ssr/src/app/[lang]/(public)/validate/validate-location-actions.ts:28`, `readValidateLocation` — `web-app/apps/ssr/src/app/[lang]/(public)/validate/validate-location-actions.ts:48` | — | — client only | — | 4, 5 | T1 |
+| A86 | Grant the device location for the validation scan | Traveller | Allow location button, on the validate flow and on the KYC gate ahead of it | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:231`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:84` | — | — | — client only | — | 5 | T1 |
 | A87 | Resolve whether the KYC-verified traveller already has an account | Traveller, logged out | Didit KYC completes on the validate gate or the login KYC route | `web-app/apps/ssr` | `/validate`, `/login/kyc` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:162`, `web-app/apps/ssr/src/app/[lang]/(auth)/login/kyc/didit.tsx:70` | `getApiTravellerServiceSsrPublicActionsGetEmailApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:107` | `client.ssrActionPublic.getApiTravellerServiceSsrPublicActionsGetEmail` | GET /api/traveller-service/ssr-public-actions/get-email | — anonymous | 4 | T1 |
 | A88 | Exchange the KYC session for an access token and sign in | Traveller, logged out then authenticated | KYC resolved an existing account | `web-app/apps/ssr` | `/validate`, `/login/kyc` | `web-app/apps/ssr/src/app/[lang]/(auth)/login/kyc/login-via-ssr-action.ts:20` | `getApiTravellerServiceSsrPublicActionsGetAccessTokenApi` — `web-app/packages/actions/unirefund/TravellerService/actions.ts:134` | `client.ssrActionPublic.postApiTravellerServiceSsrPublicActionsGetAccessToken` | POST /api/traveller-service/ssr-public-actions/get-access-token | — anonymous | 4 | T1 |
-| A89 | Read the flight ticket from the boarding-pass barcode, or type it when it will not scan | Traveller, authenticated | Scan tab camera, or the manual tab, on the flight info step | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:313`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:362` | — | — | — client only | — | 6, 23 | T1 |
+| A89 | Scan the boarding pass for the flight ticket | Traveller, authenticated | Scan tab camera on the flight info step | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:313` | — | — | — client only | — | 6, 23 | T1 |
 | A90 | Run the airport self-validation scan | Traveller, authenticated | Flight ticket submitted after the location was granted | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:368` | `postQrEvidenceScanApi` — `web-app/packages/actions/unirefund/ExportValidationService/post-actions.ts:29`, called at `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:151` | `client.qrEvidence.postApiExportValidationServiceQrEvidenceByQrValueScan` | POST /api/export-validation-service/qr-evidence/{qrValue}/scan | — authenticated, no grant | 5 | T1 |
 | A91 | Enrich the scan result with each returned tag's detail | Traveller, authenticated | Every successful validation scan | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:166` | `getTagsCrossTenantsByTravellerIdClaimApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:87` | `client.tag.getApiTagServiceTagCrossTenantsByTravellerIdClaim` | GET /api/tag-service/tag/cross-tenants/by-traveller-id-claim | TagService.Tags, TagService.Tags.GetTagsByTravellerId | 5 | T1 |
 | A92 | Rescan a validate QR that expired mid-flow | Traveller, authenticated | Rescan button on the expired QR state, then the modal camera | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/rescan-qr-modal.tsx:77` | `postQrEvidenceScanApi` — `web-app/packages/actions/unirefund/ExportValidationService/post-actions.ts:29`, called at `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/use-validate-flow.ts:346` | `client.qrEvidence.postApiExportValidationServiceQrEvidenceByQrValueScan` | POST /api/export-validation-service/qr-evidence/{qrValue}/scan | — authenticated, no grant | 7, 23 | T1 |
@@ -214,6 +216,8 @@ repository, so they have no `file:line` of their own here.
 | A97 | List own tags across tenants | Traveller, authenticated | Tags page load, and every refresh after a claim | `web-app/apps/ssr` | `/tags` | `web-app/apps/ssr/src/app/[lang]/(main)/tags/page.tsx:19` | `getTagsCrossTenantsByTravellerIdClaimApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:87` | `client.tag.getApiTagServiceTagCrossTenantsByTravellerIdClaim` | GET /api/tag-service/tag/cross-tenants/by-traveller-id-claim | TagService.Tags, TagService.Tags.GetTagsByTravellerId | — | — |
 | A98 | Open the claim modal from the tags page, behind the self-assign grant | Traveller, authenticated | Claim button in the tags header, rendered only when the grant is held | `web-app/apps/ssr` | `/tags` | `web-app/apps/ssr/src/app/[lang]/(main)/tags/_components/tag-claim.tsx:14` | — | — | — client only | — | 3 | T3 |
 | A99 | Open one of the traveller's own tags by tag number | Traveller, authenticated | Tag row on the tags page | `web-app/apps/ssr` | `/tags/[tagNumber]` | `web-app/apps/ssr/src/app/[lang]/(main)/tags/[tagNumber]/page.tsx:11` | `getTagsCrossTenantsByTravellerIdClaimByTagNumberApi` — `web-app/packages/actions/unirefund/TagService/actions.ts:103` | `client.tag.getApiTagServiceTagCrossTenantsByTravellerIdClaimByTagNumber` | GET /api/tag-service/tag/cross-tenants/by-traveller-id-claim/{tagNumber} | TagService.Tags, TagService.Tags.GetTagByTagNumberCrossTenants | — | — |
+| A100 | Type the flight ticket when there is no readable boarding pass | Traveller, authenticated | Manual tab on the flight info step | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:297`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/flight-info-step.tsx:362` | — | — | — client only | — | 5 | T1 |
+| A101 | Carry the pre-KYC location across the login so the scan step does not re-prompt | Traveller, logged out then authenticated | KYC completes with a location already granted, then the return to the validate page | `web-app/apps/ssr` | `/validate` | `web-app/apps/ssr/src/app/[lang]/(public)/validate/_components/didit-for-validate.tsx:159`, `web-app/apps/ssr/src/app/[lang]/(public)/validate/page.tsx:67` | `saveValidateLocation` — `web-app/apps/ssr/src/app/[lang]/(public)/validate/validate-location-actions.ts:28`, `readValidateLocation` — `web-app/apps/ssr/src/app/[lang]/(public)/validate/validate-location-actions.ts:48` | — | — client only | — | 4, 5 | T1 |
 
 Notes on this section.
 
@@ -235,10 +239,34 @@ arrives as a URL the phone's own camera app opened.
 `Actor` is `Traveller` on every row. `apps/ssr` is the traveller app, and no
 staff role has a route in it.
 
-A86's `Client wrapper` names two SSR-local server actions rather than a
+A101's `Client wrapper` names two SSR-local server actions rather than a
 generated client wrapper, and what they do is write and read an httpOnly cookie
 rather than call a service endpoint. Hence `— client only`, which the conventions
-define as "calls no endpoint" rather than "runs in the browser".
+define as "calls no service endpoint" rather than "runs in the browser".
+
+A86 and A101 are separate rows because they are separately testable. A86 is one
+control mounted twice — `requestLocation` in `use-validate-flow.ts:231` and in
+`didit-for-validate.tsx:84` are the same behaviour, down to identical
+`getCurrentPosition` options and the same three `GeolocationPositionError`
+branches, so they share their preconditions and every expected result including
+the failures. A101 is not how A86 persists itself: the location sits in an
+in-memory ref until KYC returns a non-Declined session, and only then is it
+written, keyed by the Didit `sessionId` and awaited so it beats the redirect
+(`didit-for-validate.tsx:154`–`160`). Its expected result belongs to a later
+request — `ValidateClient` mounting with `preCapturedLocation` set, so the flow
+starts at `collecting-flight-info` rather than prompting a second time — and its
+negative cases are its own: a cookie tagged with a different `sessionId` is
+refused (`validate-location-actions.ts:57`), as is a missing or malformed one,
+both falling back to a re-prompt.
+
+A89 and A100 are likewise separate: scanning needs a boarding pass carrying a
+readable IATA BCBP barcode, typing needs no boarding pass at all. A89 also owns
+the case where a barcode decodes but yields no flight fields — `hasParsedFlightInfo`
+(`flight-info-step.tsx:87`) withholds the Submit button (`:279`) and shows the
+amber re-scan prompt, so a raw-only read cannot continue into the scan.
+Capability `#6` in `docs/QR.md` is specifically the BCBP scan, so A100 carries
+`#5` — the self-validation flow it is a step of. Typed flight entry has no
+capability number of its own in that catalogue.
 
 Signing in with a username and password (`(auth)/login/page.tsx` →
 `login-form.tsx:60` → `signInServerApi`) takes no row of its own. It is not
