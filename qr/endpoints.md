@@ -182,7 +182,7 @@ instead. `— contrast` in `Actions` is what says so.
 | GET /api/setting-service/product-group | SettingService.ProductGroups, SettingService.ProductGroups.ViewList | Admin maintaining the global catalogue | — | Merchant or Refund Point pricing a tag — *wrong DTO*. The catalogue carries `productGroupId` but neither `isDefault` nor `vatRate`, both of which live on the per-merchant relation, so it holds **no rate to price an amount against**. | `GET /api/crm-service/merchants/{id}/product-group` for a merchant's own store; `GET /api/tag-service/sticker-header/sticker-line/{stickerLineNumber}/merchant-info` for a Refund Point pricing a merchant it does not own | — contrast | Paging and sorting only. |
 | POST /api/tag-service/tag/traveller-self-assign/by-tag-id | TagService.Tags, TagService.Tags.TravellerSelfAssignByTagId | Traveller, authenticated — "Host use only", and "No sales-amount proof is required because the Guid id is itself unguessable" | — | — | — | — contrast | `{ tagId }`, and nothing else. **No app calls it.** Both repositories define a wrapper — `web-app/packages/actions/unirefund/TagService/post-actions.ts:70` and `super-app/src/actions/TagService/actions.ts:92` — and neither is ever invoked, so choosing this endpoint means writing its first call site. It is not the wrong answer in principle; it is simply unreached, and a traveller who scanned a tag QR still claims through the by-number path with an amount taken from the public read. |
 | GET /api/crm-service/merchants | CRMService.Merchants, CRMService.Merchants.ViewList | Admin, back-office merchant management | — | Refund Point choosing a merchant for an unallocated sticker book — *no grant* expected on the back-office list, which also exposes external identifier, chain code, parent and HQ identity and lifecycle status. | `GET /api/tag-service/tag/merchants-for-creation`, which exists precisely so the counter picker does not read the back-office list | — contrast | The full back-office filter set, paged. |
-| PUT /api/tag-service/sticker-header/assign-merchant/{stickerLineNumber} | TagService.StickerHeaders, TagService.StickerHeaders.AssignMerchant | Sticker-stock administration | — | — | — | — contrast | `stickerLineNumber` in the path, `merchantId` in the query. No QR flow calls it: both scan flows send `merchantId` on the create instead. Whether that is right, or whether this explicit call is the **required** first step for an unallocated line, is exactly what [Sticker allocation: an unresolved contradiction](#sticker-allocation-an-unresolved-contradiction) turns on — and that this endpoint and `PUT .../assign-merchant-from-claim/{stickerLineNumber}` exist at all, with their own permissions, is the strongest evidence that allocation is meant to be its own act. |
+| PUT /api/tag-service/sticker-header/assign-merchant/{stickerLineNumber} | TagService.StickerHeaders, TagService.StickerHeaders.AssignMerchant | Sticker-stock administration | — | — | — | — contrast | `stickerLineNumber` in the path, `merchantId` in the query. No QR flow calls it: both scan flows send `merchantId` on the create instead. Whether that is right, or whether this explicit call is the **required** first step for an unallocated line, is what [Sticker allocation: an unresolved contradiction](#sticker-allocation-an-unresolved-contradiction) turns on. That this endpoint, `PUT .../assign-merchant-from-claim/{stickerLineNumber}` and `PUT .../{stickerHeaderId}/assign-merchant/{merchantId}` exist at all was once read here as evidence that allocation must be its own act; that reading is **withdrawn** in that section, which sources the opposite from `super-app`'s newer copy of the create's own comment. All three carry no descriptive doc text, so none of them can settle it either way. |
 | POST /api/tag-service/tag/{id}/merchant-individual-signature | TagService.Tags, TagService.Tags.AddMerchantIndividualSignature | Merchant attaching a signature to a tag that has none | — | — | — | — contrast | `id` in the path, the base64 image in the body; fails if the tag already has a merchant signature. It is the only way to attach one after creation — so the field missing from `CreateTagByStickerLineRequestDto` is repairable in principle. No QR flow calls it, so in practice nothing repairs it. |
 
 ### Draft or Issued: `status` and `traveller` are coupled
@@ -220,7 +220,9 @@ resulting tag.
 
 **What happens when a tag is created against a sticker line that is not allocated to a
 merchant yet is contradicted by the SDK's own two doc comments.** As of the stamp at
-the top of this file, both of these ship in the same generated client:
+the top of this file, both of these ship in the same generated client —
+`web-app/packages/saas/TagService/sdk.gen.ts`, which is the client `apps/web` and
+`apps/ssr` call:
 
 - `POST /api/tag-service/tag/by-sticker-line` — *"the sticker header **must already be
   assigned to a merchant, otherwise the request is rejected**."*
@@ -237,24 +239,69 @@ consequences and each is serious in its own direction:
 | `by-sticker-line` — an unallocated line is rejected | Allocation has to be its own explicit call, before any create | The unallocated-book flow on `apps/web`'s scan-sticker page is **broken**, not merely dangerous: it sends `merchantId` on the create and expects the allocation to follow. Same for `super-app`'s sticker-tag screen. |
 | `merchant-info` — the create allocates | `merchantId` for the wrong merchant permanently books someone else's stock | A wrong pick, or a stale claim, mis-allocates a whole sticker header with **no way back** — and it is silent, because the same field is ignored on allocated stock, so it tests clean. |
 
-The evidence does not point evenly. `TagService.StickerHeaders.AssignMerchant` and
-`TagService.StickerHeaders.AssignMerchantFromClaim` exist as **separate endpoints with
-their own permissions** — which is what you would build if allocation were meant to be
-an explicit act, and which would be largely redundant if the create already did it.
-That tilts towards the rejection being current, and so towards the two apps' flows
-being broken rather than hazardous.
+### What resolves it: the two trees carry different generations of the same comment
 
-Pointing the other way: `CreateTagByStickerLineRequestDto.merchantId` is documented as
-*"The merchant this tag belongs to, chosen by the operator from the merchant picker"*,
-a field with no purpose if an unallocated line is always rejected; and both apps send
-it **only** when the line is unallocated, each with a call-site comment asserting that
-the call then allocates.
+The contradiction is not between two endpoints that disagree. It is between **two
+generations of the same endpoint's doc comment**, and only one tree still carries the
+older one. `super-app` vendors its own copy of the same generated client, and its
+`by-sticker-line` comment has been rewritten —
+`super-app/src/saas/TagService/sdk.gen.ts:414`:
 
-**This is a backend question and needs a backend answer.** Until it has one, treat an
-unallocated sticker line as *unresolved* rather than as either safe or lethal, and do
-not write new callers against either reading. The one part not in dispute:
-`merchantId` is **ignored** once the line is allocated, so on allocated stock the field
-is accepted and does nothing.
+> Merchant identity comes from the sticker line's allocation, which is **first-use-wins
+> at sticker-header (book) level** — a sticker header carries no merchant until the
+> first tag is created against one of its lines. There are therefore two cases: Already
+> allocated — the allocated merchant is used and may be omitted. Supplying a different
+> merchant is rejected; an allocation cannot be re-pointed. Not allocated yet — [the
+> merchant id] is required (omitting it is rejected), and **creating the tag allocates
+> the whole sticker header to that merchant permanently**.
+
+Three things follow, each checkable:
+
+1. **The rejection in `web-app`'s copy is a narrower rule mis-stated.** What is rejected
+   is *omitting* the merchant id on an unallocated line, not the unallocated line
+   itself. `web-app`'s sentence collapses that into "the header must already be
+   assigned", which is the only wording in either tree that says so.
+2. **`merchant-info` agrees with `super-app`, byte for byte, in both trees.** Its
+   comment is identical in `web-app/packages/saas/TagService/sdk.gen.ts:266` and
+   `super-app/src/saas/TagService/sdk.gen.ts:147`, and its `merchantId` parameter is
+   documented — in *both* — as *"Optional. When the sticker line is not allocated yet,
+   pass the merchant the operator picked to preview its details and product groups."*
+   A parameter documented for the unallocated case is not compatible with the
+   unallocated case being rejected outright.
+3. **`web-app`'s own client is the one that is internally inconsistent**, and it is the
+   only one that is. `super-app`'s two comments agree with each other; `web-app`'s do
+   not.
+
+So the earlier reading of the `AssignMerchant` endpoints was **backwards**, and it is
+withdrawn here rather than left standing.
+`TagService.StickerHeaders.AssignMerchant`, `.AssignMerchantFromClaim` and a third,
+`.AssignMerchantByHeaderId`, are not evidence that a create cannot allocate: they are
+the administrative path for stock that first-use-wins cannot reach, which is exactly
+what *"an allocation cannot be re-pointed"* implies must exist somewhere. All three
+carry **no descriptive doc text at all** — their comment blocks open directly on the
+`**Requires permissions:**` line — so no reading of them can be argued from prose.
+
+**What this changes, and what it does not.** It removes the reading under which
+`apps/web`'s and `super-app`'s unallocated-book flows are *broken*: on the weight of
+the evidence above they are correct, and both apps' call-site comments — which assert
+that the create allocates — are right. What survives untouched is the hazard the
+`merchant-info` comment names in both trees: a create against an unallocated book
+**permanently** allocates the whole header to whichever merchant was picked, with no
+way back, and it tests clean against allocated stock because the same field is ignored
+there. The defect this section now records is therefore a **stale generated client in
+`web-app`**, whose `by-sticker-line` comment tells a developer that a flow their own
+app ships is unsupported.
+
+This remains a backend question in the sense that no doc comment is the implementation,
+so a caller writing *new* code against an unallocated line should still confirm with
+the service. It is no longer a question this repository cannot make progress on. The
+one part never in dispute: `merchantId` is **ignored** once the line is allocated, so
+on allocated stock the field is accepted and does nothing.
+
+The neutral wording elsewhere in this file, and the hedges in
+[`test-flows.md`](test-flows.md)'s unallocated-sticker flows, are deliberately left as
+they are: a hedged test step is safe under either reading, and a tester who declines to
+permanently allocate a book on the strength of a doc comment has lost nothing.
 
 ## Overlapping endpoints
 
