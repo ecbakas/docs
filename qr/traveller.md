@@ -346,28 +346,57 @@ manual tab (`A95`, typed tag number plus sales amount,
 `claim-tag-modal.tsx:287`–`336`), because it has no separate manual-entry route
 to defer to the way `super-app` does.
 
-**Closing the modal after any claim re-runs the scan on both apps**, because a
-claimed tag is not a validated tag and only the scan endpoint decides which
-bucket it lands in: `super-app`'s `handleClaimClose`
-(`ValidateScreen.tsx:163`–`171`) and `apps/ssr`'s `handleClaimModalOpenChange`
-(`use-validate-flow.ts:323`–`338`) both key this on whether a claim was
-*attempted* since the modal opened, not on a reported success, because a claim
-can commit on the server even if its response never arrives — that re-scan is
-`A96` on `apps/ssr` and folded into `A25`'s own close handler on `super-app`.
+**Closing the modal after any claim re-runs the scan — but the two apps key
+this on different things, and the difference matters.** A claimed tag is not a
+validated tag, so both apps re-run the scan (`A96` on `apps/ssr`, folded into
+`A25`'s own close handler on `super-app`) rather than inserting a row locally.
+`super-app`'s `handleClaimClose`
+(`ValidateScreen.tsx:163`–`171`) keys this on whether a claim was **attempted**:
+`ClaimTagModal`'s `onClaimAttempted()` fires *before* the `await`
+(`ClaimTagModal.tsx:108`–`110`, "fired before the await, not after: a commit
+that lands on the server but whose response we never see must still trigger
+the parent's re-scan") — so a dropped response after a real commit still
+triggers the rescan. **`apps/ssr`'s `handleClaimModalOpenChange`
+(`use-validate-flow.ts:323`–`338`) does not reproduce this — it keys on a
+*reported success* only, the opposite of `super-app`'s half.**
+`claimedSinceOpenRef.current` is set only inside `handleTagClaimed`
+(`use-validate-flow.ts:314`–`315`), which is wired as the modal's `onTagClaimed`
+prop; that prop is invoked only inside the `res.type === "success"` branches
+of `handleConfirm` and `handleManualClaim`
+(`claim-tag-modal.tsx:151`,`192`). There is no attempt-tracking prop on this
+modal at all — `ClaimTagModalProps` carries only `open` / `onOpenChange` /
+`onTagClaimed` (`claim-tag-modal.tsx:35`–`39`). The registry's own `Trigger`
+cell for `A96` matches this exactly, verbatim: "Claim tag modal closes after at
+least one successful claim" — not "attempted." Concretely reachable, not
+theoretical: `claim-tag-modal.tsx`'s `handleClose`
+(`:208`–`218`) applies no `isPending` guard before calling `onOpenChange`, and
+the shared `DialogContent` renders its own close (`X`) button by default with
+`showCloseButton` left at its default `true`
+(`web-app/packages/ayasofyazilim-ui/src/components/dialog.tsx:53`,`72`–`80`) —
+nothing here stops a traveller from dismissing the dialog (via that button,
+Escape, or the overlay) while a claim POST is still in flight — unlike
+`super-app`'s modal, which explicitly blocks exactly this (`isClaiming`-gated
+`handleClose`, `ClaimTagModal.tsx:69`–`75`). On `apps/ssr`, closing the modal in
+that window means the eventual success response updates state nobody is
+listening to anymore: the rescan check already ran once, against a still-false
+ref.
 
-**The accepted limitation** is written down in
-`super-app/QR_FEATURE_CHECKLIST.md`'s Phase 8: "If the post-claim `runScan()`
-fails, the screen shows the generic validation-failed state with nothing
-saying the claim itself succeeded. … the claim is already committed
-server-side and the tag is in the account regardless." That is specific to
-`super-app`'s checklist, but the same gap is independently observable in
-`apps/ssr`'s own code: `doValidate`'s failure branch
-(`use-validate-flow.ts:210`–`228`) sets the same generic `"failed"` state
-regardless of whether the failed call was the first scan or a post-claim
-re-scan — there is no branch anywhere that distinguishes "your claim went
-through but the rescan didn't" from an ordinary failure. Neither app tells the
-traveller their claim succeeded if the following re-scan fails; on both, it
-did.
+**The accepted limitation is real on `super-app`, and a stricter gap exists on
+`apps/ssr`.** `super-app/QR_FEATURE_CHECKLIST.md`'s Phase 8 accepts that "if
+the post-claim `runScan()` fails, the screen shows the generic
+validation-failed state with nothing saying the claim itself succeeded … the
+claim is already committed server-side and the tag is in the account
+regardless" — that is `super-app`'s case, where the rescan reliably *runs* and
+can then separately fail to render its success. `apps/ssr`'s failure mode is
+earlier and quieter: when the response to a committed claim is lost (dropped,
+or arrives after an early dismiss), the rescan **never fires at all** — no
+error state, no failed state, nothing distinguishing it from a session where
+no claim happened. The tag is still claimed server-side and will appear the
+next time anything re-runs the scan, but nothing on this screen tells the
+traveller that, and nothing prompts them to look. This is routed as a new
+Finding for Task 13 below, alongside the BCBP-parser drift — `QR_FEATURE_CHECKLIST.md`
+Phase 8 was written on the assumption that both apps bound this gap the same
+way, and they do not.
 
 ## After the claim: the traveller's own tags
 
