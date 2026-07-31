@@ -65,7 +65,7 @@ writing it uncovers a code defect, that defect is recorded (see
 
 | File | Contract |
 | --- | --- |
-| `README.md` | Index and foundations. The three QR types and the wire format. How each app resolves a QR. Login and session resolution per app. The action-id index, and a link to the route→action index that lives in `actions-and-routes.md`. How to read the permission column. The [Findings](#findings) section. |
+| `README.md` | Index and foundations. The three QR types and the wire format. [Where codes come from](#where-codes-come-from). How each app resolves a QR. Login and session resolution per app. The action-id index, and a link to the route→action index that lives in `actions-and-routes.md`. How to read the permission column. The [Findings](#findings) section. |
 | `traveller.md` | Perspective chapter — `T1`/`T2`/`T3`. |
 | `merchant.md` | Perspective chapter — `M1`/`M2`/`M3`. |
 | `refund-point.md` | Perspective chapter — `R1`/`R2`/`R3`. |
@@ -136,10 +136,10 @@ Excluded:
   is separately permissioned and can fail on its own.
 - Tag lifecycle work that no QR reaches — risk rule configuration, refund
   operations, reporting, sticker-book creation and allocation from the admin side.
-- `pos-app`. It is out of the stated scope. It is **referenced** once, in
-  `README.md`, because it prints the Code128 tag-number barcode that capability
-  `#28` is about, and a reader tracing that barcode needs to know where it comes
-  from.
+- `pos-app` as a *consumer*. It is out of the stated scope and gets no action rows.
+  It appears only in [Where codes come from](#where-codes-come-from), as one of the
+  points that **produces** a code the other three apps must read.
+- `file/verification/[fileId]/create-tag`. Out of scope — no QR reaches it.
 - `tax-free-tags/new-old/`. Superseded by `new/`; named once in the registry as
   dead and not documented further.
 
@@ -238,6 +238,45 @@ Two consequences the guide must handle rather than hide:
 `policies.gen.json` (mobile) and `policies.json` (web) enumerate all 848 policy
 strings. They are used only to confirm that a permission named in an annotation
 actually exists — they say nothing about who holds it.
+
+## Where codes come from
+
+A section in `README.md`. Every action in this guide begins with someone reading a
+code, so the guide has to say what **produced** it — a reader cannot test a flow
+without knowing how to get a valid code in front of a scanner, and cannot debug a
+failing scan without knowing who authored the string.
+
+| Code | Produced by | Content authored by |
+| --- | --- | --- |
+| **Sticker QR** | web · `operations/stickers/[stickerId]/_components/print-sticker-lines-action.ts` | client, `buildTagUrl` from `@unirefund/qr` — encodes only the `s` key |
+| **Tag QR** | web · `tax-free-tags/[tagId]/_components/print-tag.tsx`, via `react-qr-code` | **the backend** — the value is `TagDetailDto.publicLink`, not built locally |
+| **Code128 tag-number barcode** | `pos-app` · `screens/(auth)/Tags/TagDetail/_components/tagPrintTemplate.ts` — `printBarcode(tagNumber, "code128")` | nobody — it is a bare tag number, which is exactly why capability `#28` existed |
+| **Validate QR** | web · `(external)/qr/_components/rolling-qr-card.tsx`, the airport kiosk | server-issued and rolling, so it expires mid-flow by design (`#7`) |
+
+Two things fall out of this table that no perspective chapter would surface, and
+both belong in the guide:
+
+**The tag QR has two possible authors.** `@unirefund/qr` is described everywhere as
+the single source of truth for the wire format, and for the sticker QR it is. The
+printed *tag* QR is not built with it — `print-tag.tsx` encodes the backend's
+`publicLink` field verbatim. So the claim "one library decides the format" is true
+of stickers and only partly true of tags. Whether the two agree is not verifiable
+from this repository, which is what makes it a [Finding](#findings) rather than a
+paragraph: if `publicLink` and `buildTagUrl` ever diverge, a printed tag QR and a
+printed sticker QR resolve differently, and nothing in either codebase would catch
+it.
+
+**`pos-app` produces a code no app could resolve.** A bare tag number is not a
+slug, the mobile scanner's default symbologies include `code-128` so the barcode
+*is* read, and it then decoded to nothing — the whole of `#28`. It is fixed now, and
+the fix is what makes `pos-app` worth naming here: a producer that shares no code
+with its consumers is how that gap opened in the first place.
+
+`pos-app` also ships `screens/(auth)/DeviceSettings/BarcodeTestScreen.tsx`, which
+uses `base64UrlEncode` from `@unirefund/qr` to print arbitrary test barcodes on a
+device. `test-flows.md` names it in the test-data preamble: it is the only way to
+produce a scannable code without a real printed sticker book, and several flows are
+otherwise blocked on physical stock.
 
 ## Endpoint ownership
 
@@ -368,14 +407,26 @@ which *branch* runs before any permission is consulted:
 each repeat:
 
 - **The wire format.** `@unirefund/qr`
-  (`github:ayasofyazilim-clomerce/unirefund-qr`) is the single source of truth for
-  generating and resolving Unirefund codes, shared by all apps so that a code
-  produced by one resolves identically in the others. The slug keys are `i` tag
-  id, `n` tag number, `t` traveller document number, `s` sticker line number, and
-  the guide states the precedence rules that follow from them — a slug carrying
-  `s` is a sticker even when it also carries tag fields; a slug carrying only `t`
-  identifies nothing openable. Its `vectors.json` is named as the fixture any
-  parser change must still satisfy.
+  (`github:ayasofyazilim-clomerce/unirefund-qr`) is the shared codec — it exports
+  `encodeTagSlug` / `decodeTagScan`, `buildTagUrl` / `resolveTagLink`, and
+  `buildValidateUrl` / `extractValidateQrValue`, and all four apps depend on it so
+  that a code **decodes** identically everywhere. The slug keys are `i` tag id, `n`
+  tag number, `t` traveller document number, `s` sticker line number, and the guide
+  states the precedence rules that follow — a slug carrying `s` is a sticker even
+  when it also carries tag fields; a slug carrying only `t` identifies nothing
+  openable. Its `vectors.json` is named as the fixture any parser change must still
+  satisfy.
+
+  The chapter is careful about one thing here: the library is the single source of
+  truth for **decoding**, and for **encoding** the sticker QR — but not for every
+  code that gets printed. The tag QR's value comes from the backend, and
+  classification is per-app by design. Both are set out in
+  [Where codes come from](#where-codes-come-from) rather than glossed here, because
+  "one library decides everything" is the assumption that would let a real
+  divergence go unnoticed.
+
+- **Where each code comes from** — the producer table, so a reader can obtain a
+  valid code before trying to scan one.
 - **How each app resolves a QR**, carried over from `QR.md` and expanded: SSR
   resolves by URL because a tag QR encodes a link the phone's own camera opens;
   `super-app` classifies in-app because it owns the camera; `apps/web` adds a
@@ -429,6 +480,15 @@ them by describing intended behaviour as actual behaviour.
 If the pass finds nothing, the section says so explicitly. An empty Findings
 section is a result; a missing one is ambiguous.
 
+**Already found, while designing this.** The section does not start empty, which is
+itself evidence that the pass is worth making:
+
+| Finding | Detail |
+| --- | --- |
+| The tag QR has two possible authors | `print-tag.tsx` encodes the backend's `TagDetailDto.publicLink`; the sticker print flow builds its code with `buildTagUrl` from `@unirefund/qr`. If the two formats drift, a printed tag QR and a printed sticker QR resolve differently and nothing catches it. Not verifiable from this repository — needs a backend answer. See [Where codes come from](#where-codes-come-from). |
+| Three endpoints return "product groups" | And only two carry a `vatRate`. Not a defect, but an undocumented trap that has already produced one real bug (`#15`). Resolved by the decision table in [Overlapping endpoints](#overlapping-endpoints). |
+| `classifyScan` is duplicated, not shared | `apps/web` defines it locally in `operations/scan-sticker/client.tsx`; `super-app` has its own in `src/utils/qr/classifyScan.ts`. The *decoding* is shared via `@unirefund/qr`, deliberately, but the classification each app applies to the result is not, so the two can disagree about what a given code means. `super-app`'s own comment argues this is correct — classification is per-app product policy, and web genuinely needs the wedge branch mobile must not have. Recorded so the divergence is a decision on the record rather than an accident. |
+
 ## Verification
 
 The guide's only value is being accurate, so accuracy is verified rather than
@@ -470,7 +530,11 @@ assumed:
 
 - Any change to application code, including the defects the Findings section
   records.
-- `pos-app`, except the one reference explaining where the Code128 tag-number
-  barcode comes from.
+- `pos-app` as a consumer — no action rows, no endpoint rows. It appears **only** in
+  [Where codes come from](#where-codes-come-from), as a producer of codes the other
+  three apps read, plus its `BarcodeTestScreen` in the test-data preamble.
+- `file/verification/[fileId]/create-tag`. No QR reaches it.
 - The true role→permission grant matrix, which is backend configuration.
+- Whether the backend's `publicLink` agrees with `@unirefund/qr`'s `buildTagUrl`.
+  Recorded as a Finding, answered elsewhere.
 - Executing the test flows.
