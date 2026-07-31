@@ -231,9 +231,21 @@ because a reader's first question is whether they must be logged in:
   clear"*, and it documents 401/403. Its sibling `.../scanWithTravellerInfo` **is**
   annotated, with `ExportValidationService.QrEvidence.ScanWithTravellerInfo`.
 
-Which case applies is read from the method's own doc comment and its documented status
-codes, not assumed from the missing annotation. *(Corrected 2026-07-31 during Task 2,
-which found the second case and correctly refused to record it as anonymous.)*
+Which case applies is read from the method's own doc comment **and its call site** —
+whether the client wrapper sends a bearer token — never assumed from the missing
+annotation. The declared status codes are **not** a usable test: they are generator
+boilerplate, identical across all 55 `TagService` and 11 `ExportValidationService`
+methods, so the genuinely anonymous read declares 401 and 403 just like a gated one.
+The reliable tell is that the `TagPublicService` wrappers deliberately bypass the
+authenticated fetch path, which would otherwise send `Bearer undefined`.
+
+An action that calls no endpoint takes `—` in its permission cell, not
+`— anonymous`: there is no endpoint there to be anonymous about, and several
+client-only actions are reachable only inside an authenticated session.
+
+*(Both corrections made 2026-07-31 during Task 2, which found the authenticated-but-
+ungranted case, correctly refused to record it as anonymous, and then disproved the
+status-code test this spec had briefly relied on.)*
 
 Two consequences the guide must handle rather than hide:
 
