@@ -122,6 +122,17 @@ One row per **distinct thing a party can do that the guide must be able to test
 separately**. The test is whether it needs its own preconditions and its own
 expected result.
 
+**A different outcome of the same control is not a different action.** Ruled
+2026-07-31, after Task 4 asked whether "a boarding-pass barcode that decodes but
+yields no flight fields" deserved its own id. It does not: the traveller operates the
+same control with the same intent and only the result differs, which is a **negative
+case in that action's test flow** — exactly where `test-flows.md` already puts it. A
+new row needs a **different control or a different intent**; the manual flight-ticket
+tab earned one because it is a separate control a traveller chooses *instead of*
+scanning. Read the other way, every distinct failure precondition would become an
+action, every flow's negative-cases section would be empty by construction, and the
+registry would grow without describing anything new.
+
 Included:
 
 - Anything triggered by reading a code — QR camera scan, wedge/keyboard scan,
