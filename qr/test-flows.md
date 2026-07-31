@@ -458,20 +458,21 @@ invoice amount to enter
    EXPECT the picked store's product groups load, ready to price a line.
 2. Enter an invoice amount, leave the traveller field empty, and submit the
    create action.
-   **The result of this step is not established by this guide.** The
-   underlying SDK's own documentation disagrees about whether creating
-   against a still-unallocated line is rejected outright or permanently
-   allocates the whole sticker book to the picked store — see
-   `endpoints.md`'s "Sticker allocation: an unresolved contradiction". Do
-   not treat either a rejection or a success here as confirmation of which
-   reading is correct, and do not repeat this step against a second
-   unallocated sticker without a settled answer — if the book is in fact
-   allocated by this call, it cannot be pointed at a different store
-   afterward.
+   **The result of this step is not established by this guide — see the
+   note below before running it.**
 3. Separately, repeat against Sticker O (already allocated) instead.
    EXPECT a normal, unambiguous create: a new Draft or Issued tag bound to
    the sticker, with the picked-merchant question moot since the book is
    already spoken for.
+
+**Note.** Step 2's underlying SDK documentation disagrees about whether
+creating against a still-unallocated line is rejected outright or
+permanently allocates the whole sticker book to the picked store — see
+`endpoints.md`'s "Sticker allocation: an unresolved contradiction". Do not
+treat either a rejection or a success in step 2 as confirmation of which
+reading is correct, and do not repeat step 2 against a second unallocated
+sticker without a settled answer — if the book is in fact allocated by
+that call, it cannot be pointed at a different store afterward.
 
 **Negative cases**
 - Attempt this create signed in as Staff M (a merchant) instead of Staff R.
@@ -482,18 +483,28 @@ invoice amount to enter
 ### TF-A21 — Capture the merchant and traveller signatures on a sticker tag
 
 **App:** mobile app · **Role:** Merchant staff, Refund Point staff
-**Needs:** Staff M signed in; Sticker O
+**Needs:** Staff M signed in; Sticker O; Sticker U
 
 1. Signed in as Staff M, scan Sticker O and reach the pricing screen.
    EXPECT both a traveller signature pad and a merchant signature pad
    available, regardless of whether a traveller has been attached yet.
 2. Sign both pads and submit a create with a traveller attached.
    EXPECT the created (Issued) tag to carry both signatures.
-3. Repeat signed in as Staff R (Refund Point) on Sticker U, picking a
-   merchant first.
+3. Signed in as Staff R (Refund Point), scan Sticker U, pick a merchant,
+   and reach the signature step — **without submitting the create yet**.
    EXPECT only the traveller signature pad is offered — no merchant
    signature pad for a Refund Point, since a Refund Point is not the
    merchant.
+4. Sign the traveller pad and submit the create.
+   **The result of this step is not established by this guide — see the
+   note below before running it.**
+
+**Note.** Sticker U is still unallocated at the point it was picked in
+step 3, so completing the create in step 4 is the same disputed action
+`TF-A20` describes — see `endpoints.md`'s "Sticker allocation: an
+unresolved contradiction". Do not treat either a rejection or a success in
+step 4 as confirmation of which reading is correct, and do not run that
+step against a book anyone still needs unallocated.
 
 **Negative cases**
 - As Staff M, sign the traveller pad but never attach a traveller, then
@@ -1125,17 +1136,28 @@ Traveller A's document number
 ### TF-A54 — Capture the merchant and traveller signatures on a scanned sticker tag
 
 **App:** operations web app · **Role:** Merchant staff, Refund Point staff
-**Needs:** Staff M mid-way through pricing a sticker tag; Staff R mid-way
-through the same, on a different sticker
+**Needs:** Staff M mid-way through pricing Sticker O; Staff R mid-way
+through pricing Sticker U, having picked a merchant
 
 1. As Staff M, open the signature capture on the scan result.
    EXPECT both a traveller signature pad and a merchant signature pad
    available, regardless of whether a traveller is attached yet.
 2. Sign both, attach a traveller, and create the tag.
    EXPECT both signatures present on the created (Issued) tag.
-3. As Staff R, repeat on an unallocated sticker after picking a merchant.
+3. As Staff R, on Sticker U, having picked a merchant, open the signature
+   capture on the scan result — **without submitting the create yet**.
    EXPECT only the traveller pad is offered — no merchant pad for a Refund
    Point.
+4. Sign the traveller pad and submit the create.
+   **The result of this step is not established by this guide — see the
+   note below before running it.**
+
+**Note.** Sticker U is still unallocated at the point it was picked in
+step 3, so completing the create in step 4 is the same disputed action
+`TF-A56` describes — see `endpoints.md`'s "Sticker allocation: an
+unresolved contradiction". Do not treat either outcome in step 4 as
+confirmation of which reading is correct, and do not run that step against
+a book anyone still needs unallocated.
 
 **Negative cases**
 - As Staff M, attach a traveller, sign the traveller pad, then remove the
@@ -1175,13 +1197,18 @@ invoice amount
 1. Signed in as Staff R, scan Sticker U, pick a merchant, and price a line.
    EXPECT the picked store's product groups available.
 2. Submit the create with no traveller attached.
-   **The result of this step is not established by this guide** — see
-   `TF-A20`'s identical note and `endpoints.md`'s "Sticker allocation: an
-   unresolved contradiction". Do not run this against a book anyone still
-   needs unallocated, and do not treat either outcome as settling the
-   question.
+   **The result of this step is not established by this guide — see the
+   note below before running it.**
 3. Separately, repeat against Sticker O (already allocated).
    EXPECT a normal, unambiguous create.
+
+**Note.** Step 2 is the same disputed action `TF-A20` describes for the
+mobile app: the underlying SDK's own documentation disagrees about whether
+creating against a still-unallocated line is rejected outright or
+permanently allocates the whole sticker book to the picked store — see
+`endpoints.md`'s "Sticker allocation: an unresolved contradiction". Do not
+run step 2 against a book anyone still needs unallocated, and do not treat
+either outcome as settling the question.
 
 **Negative cases**
 - Attempt this same create signed in as Staff M (a merchant).
@@ -1600,8 +1627,8 @@ claim modal's own scan tab use an in-page camera on this site.
 - Scan a sticker QR for a line with no tag issued on it yet.
   EXPECT a generic lookup-failed message on this site — unlike the mobile
   app, this site has no dedicated "no tag on this sticker yet" wording; the
-  generic failure component is what a tester should expect here, not the
-  mobile-specific copy.
+  same generic failure screen every other lookup failure on this site uses
+  is what a tester should expect here, not the mobile-specific copy.
 
 ### TF-A79 — Read a tag's public detail by tag number and traveller document
 
@@ -2192,7 +2219,7 @@ is still outstanding, and this file links to them rather than restating
 their contents, so the two lists cannot drift apart:
 
 - [`docs/QR.md` § Verification still outstanding](../QR.md#verification-still-outstanding)
-- `super-app/QR_FEATURE_CHECKLIST.md`'s unchecked native-verification boxes
+- [`super-app/QR_FEATURE_CHECKLIST.md`](../../super-app/QR_FEATURE_CHECKLIST.md)'s unchecked native-verification boxes
 
 Running the flows in this file for the first time is itself part of closing
 those two lists, not a separate activity from it.
