@@ -1,6 +1,6 @@
 # QR handling — permissions by role
 
-This file answers which QR actions each role is permitted to perform.
+This file answers which permissions each role's QR actions require.
 
 _Verified against: 2026-07-31 · super-app `24221f7` · web-app `0cf122af0`._
 
@@ -100,9 +100,10 @@ below the role tables — it is a permission this list does not otherwise mentio
 41 action ids filed here (21 from `super-app`, 20 from `web-app/apps/web`).
 `TagService.StickerHeaders.ViewMerchantInfo` is the permission behind the
 **observed** merchant-staff 403 (`#15`) — see
-["What this file does not know"](#what-this-file-does-not-know) — it is a Refund
-Point grant, not a shared staff one, even though the endpoint answers a question
-("whose store is this book?") both roles ask.
+["What this file does not know"](#what-this-file-does-not-know) — it is required
+only by Refund Point's own actions here, not a shared staff requirement, even
+though the endpoint answers a question ("whose store is this book?") both roles
+ask.
 
 ## Customs
 
