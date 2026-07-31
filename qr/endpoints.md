@@ -17,10 +17,13 @@ text — no backticks — because they are joined against the registry by exact 
 **Scope.** Every endpoint a QR flow reaches gets a full row: that is the registry's
 `Endpoint` column, deduplicated — 25 endpoints. A handful of endpoints no QR flow
 calls, but that someone reaches for instead, get a **contrast row**: `— contrast` in
-`Actions`, the real permission, and one line on why it is the wrong answer here.
-Nothing else is in. This is a QR guide, not an API reference; `TagService` alone has
-55-plus methods, and risk configuration, refund operations and reporting get no rows
-at all.
+`Actions`, the real permission, and one line on **why it is not the call to make
+here**. That line is not always "it is wrong": a contrast row may say the endpoint is
+*unreached* (defined, never invoked, so choosing it means writing the first call site)
+or that whether it is wrong at all is *disputed* — see [Sticker allocation: an
+unresolved contradiction](#sticker-allocation-an-unresolved-contradiction). Nothing
+else is in. This is a QR guide, not an API reference; `TagService` alone has 55-plus
+methods, and risk configuration, refund operations and reporting get no rows at all.
 
 **`Permission`** is copied from the SDK's `**Requires permissions:**` annotation. Two
 markers replace it, and they are not interchangeable:
@@ -34,10 +37,14 @@ is required. The distinction is load-bearing for the traveller who scans before
 logging in.
 
 **`Intended caller`** is the party the endpoint exists for. Where the cell carries a
-**quoted phrase**, that phrase is the SDK doc comment naming the party, and the claim
-is prose-backed. Where it carries an unquoted list of parties, that list is the union
-of the registry's `Actor` values for the actions reaching the endpoint, and nothing
-more is claimed than that. `Also called by` is for a party that legitimately calls it
+**quoted phrase**, that phrase is quoted verbatim from the SDK and is the basis for the
+claim — but read the quote, because the three ways it can support the claim are not
+equally direct: most name the party outright ("Intended for a Refund Point issuing a
+tag at its own counter"); two are quoted from the **request type's** doc rather than
+the method's; and one names a *step* rather than a party ("The lookup step before
+CreateByStickerLineAsync"), leaving the party a short inference from it. Where the cell
+carries an unquoted list of parties, that list is the union of the registry's `Actor`
+values for the actions reaching the endpoint, and nothing more is claimed than that. `Also called by` is for a party that legitimately calls it
 too; it is `—` unless the registry actually shows a second party in a different role.
 
 **`Must not call`** is the field that earns this file, and it always carries a
@@ -65,7 +72,35 @@ configuration and is not in this repository. See
 endpoint is absent from this file by rule; the registry marks it `— client only` so
 the absence is checkable.
 
+### If you are editing this file, read this first
+
+`docs/qr/_verify/check.mjs` merges **every** table whose first header cell is
+`Endpoint` into one logical table and joins it against the registry in both
+directions. That has two consequences an editor has to know:
+
+1. The endpoint tables below are split per service **only** for readability. They are
+   one table as far as the checker is concerned, which is why all ten carry a
+   byte-identical header. Changing one header breaks the join silently.
+2. **No other table in this file may lead with `Endpoint`.** A decision table or an
+   anti-pattern table that does gets its rows absorbed into the endpoint join, where
+   they are read as endpoints that no registry action reaches. Lead those with the
+   caller's need, the symptom, or anything else — see the existing ones for the
+   pattern.
+
+This is the most brittle invariant in the file, so it is written down here rather than
+left to the checker to discover.
+
 ## Endpoints
+
+The endpoint tables, in order: [sticker lines](#tagservice--sticker-lines) ·
+[creating a tag](#tagservice--creating-a-tag) ·
+[reading a tag as staff](#tagservice--reading-a-tag-as-staff) ·
+[reading a tag as a traveller](#tagservice--reading-a-tag-as-a-traveller) ·
+[putting a traveller on a tag](#tagservice--putting-a-traveller-on-a-tag) ·
+[CRMService](#crmservice) · [TravellerService](#travellerservice) ·
+[ExportValidationService](#exportvalidationservice) ·
+[DeviceService and ReportService](#deviceservice-and-reportservice) ·
+[contrast rows](#contrast-rows)
 
 ### TagService — sticker lines
 
@@ -78,9 +113,9 @@ the absence is checkable.
 
 | Endpoint | Permission | Intended caller | Also called by | Must not call | Instead use | Actions | Body contract |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| POST /api/tag-service/tag | TagService.Tags, TagService.Tags.Create | Merchant — "the merchant creating the tag identifies itself in the request" | Admin — the new-tag form, with no sticker scanned | Refund Point issuing for a merchant it does not own — *wrong DTO*. `CreateTagRequestDto` takes the merchant identity **from the request**, so the caller asserts a merchant identity it must not assert, and `CreatedByRefundPointId` is never recorded against the tag. | `POST /api/tag-service/tag/by-sticker-line`, which resolves the merchant server-side from the sticker line and records the creating Refund Point from its own affiliation claim | A19, A27, A55, A62 | `CreateTagRequestDto`. Required: `merchant` (VAT number, optionally narrowed by external identifier) and `invoices`. Optional: `stickerLineNumber` — so a scanned sticker still binds in this one call — plus `travellerSignatureBase64`, `merchantIndividualSignatureBase64`, `salesPersonIndividualId`, `payoutTokenId`. |
-| POST /api/tag-service/tag/by-sticker-line | TagService.Tags, TagService.Tags.CreateByStickerLine | Refund Point — "Intended for a Refund Point issuing a tag at its own counter" | — | Merchant — *no grant*, **observed** (`#29`); and *wrong DTO*: `CreateTagByStickerLineRequestDto` has no `merchantIndividualSignatureBase64` and no `salesPersonIndividualId`, so a captured merchant signature and the frontline-incentive attribution are dropped with no error at all. Any caller sending `merchantId` on a line that is not allocated yet — *side effect*, **but which one is disputed**: this endpoint's own doc comment says such a line is rejected outright, while the merchant-info comment says the create allocates the whole sticker header permanently. Both cannot be true, and this file does not pick between them — see [Sticker allocation: an unresolved contradiction](#sticker-allocation-an-unresolved-contradiction). | Merchants post `POST /api/tag-service/tag` with `stickerLineNumber` set. For `merchantId`: read `isMerchantAllocated` from `GET /api/tag-service/sticker-header/sticker-line/{stickerLineNumber}/merchant-info` first, and send nothing on an allocated line, where the field is ignored anyway. On an **unallocated** line there is no safe instruction to give until the contradiction is settled by the backend, because the two readings differ on whether the call fails or succeeds irreversibly | A20, A56 | `CreateTagByStickerLineRequestDto`. Required: `stickerLineNumber` and `invoices`. Optional: `merchantId`, `travellerSignatureBase64`, `payoutTokenId`. **No** `merchant`, **no** `merchantIndividualSignatureBase64`, **no** `salesPersonIndividualId` — the three fields the standard create has and this one does not. |
-| GET /api/tag-service/tag/merchants-for-creation | TagService.Tags, TagService.Tags.ViewMerchantsForCreation | Refund Point — "the merchants a tag may be created on behalf of" | — | Merchant — *side effect*. The pick decides which merchant a sticker book gets booked to, and a merchant must never make that choice for a book; its own merchant id comes from its own affiliation claim, not from a picker. | `GET /api/crm-service/merchants/{id}` with the merchant id taken from the operator's own affiliation claim | A15, A51 | Optional partial `name` and `vatNumber`, paged. Returns id, name and VAT number only, and only ACTIVE merchants — deliberately not the back-office merchant list. |
+| POST /api/tag-service/tag | TagService.Tags, TagService.Tags.Create | Merchant — "the merchant creating the tag identifies itself in the request" | Admin — the new-tag form, with no sticker scanned | Refund Point issuing for a merchant it does not own — *wrong DTO*. `CreateTagRequestDto` takes the merchant identity **from the request**, so the caller asserts a merchant identity it must not assert. The SDK states only that the *other* path records `CreatedByRefundPointId` from the caller's affiliation claim, and that the field is null when the merchant created the tag itself; what a Refund Point on this path produces is **not documented either way**, so do not assume the attribution survives. | `POST /api/tag-service/tag/by-sticker-line`, which resolves the merchant server-side from the sticker line and is the path the SDK documents as recording the creating Refund Point | A19, A27, A55, A62 | `CreateTagRequestDto`. Required: `merchant` (VAT number, optionally narrowed by external identifier) and `invoices`. **`status`** is `Draft` or `Issued` and is the caller's choice — see the coupling note below the tables. Optional: `traveller` (a full `TravellerRequestDto`), `stickerLineNumber` — so a scanned sticker still binds in this one call — plus `travellerSignatureBase64`, `merchantIndividualSignatureBase64`, `salesPersonIndividualId`, `payoutTokenId` and `payoutToken`. |
+| POST /api/tag-service/tag/by-sticker-line | TagService.Tags, TagService.Tags.CreateByStickerLine | Refund Point — "Intended for a Refund Point issuing a tag at its own counter" | — | Merchant — *no grant*, **observed** (`#29`); and *wrong DTO*: `CreateTagByStickerLineRequestDto` has no `merchantIndividualSignatureBase64` and no `salesPersonIndividualId`, so a captured merchant signature and the frontline-incentive attribution are dropped with no error at all. Any caller sending `merchantId` on a line that is not allocated yet — *side effect*, **but which one is disputed**: this endpoint's own doc comment says such a line is rejected outright, while the merchant-info comment says the create allocates the whole sticker header permanently. Both cannot be true, and this file does not pick between them — see [Sticker allocation: an unresolved contradiction](#sticker-allocation-an-unresolved-contradiction). | Merchants post `POST /api/tag-service/tag` with `stickerLineNumber` set. For `merchantId`: read `isMerchantAllocated` from `GET /api/tag-service/sticker-header/sticker-line/{stickerLineNumber}/merchant-info` first, and send nothing on an allocated line, where the field is ignored anyway. On an **unallocated** line there is no safe instruction to give until the contradiction is settled by the backend, because the two readings differ on whether the call fails or succeeds irreversibly | A20, A56 | `CreateTagByStickerLineRequestDto`. Required: `stickerLineNumber` and `invoices`. **`status`** is `Draft` or `Issued` and is the caller's choice — see the coupling note below the tables. Optional: `traveller` (a full `TravellerRequestDto`), `merchantId`, `travellerSignatureBase64`, `payoutTokenId` and `payoutToken`. **No** `merchant`, **no** `merchantIndividualSignatureBase64`, **no** `salesPersonIndividualId` — the three fields the standard create has and this one does not. |
+| GET /api/tag-service/tag/merchants-for-creation | TagService.Tags, TagService.Tags.ViewMerchantsForCreation | Refund Point — "the merchants a tag may be created on behalf of" | — | Merchant — *no grant*: the registry has only a Refund Point reaching this endpoint (A15, A51). The read itself changes nothing, but it exists so that "the operator must choose which merchant to allocate it to", and a merchant must never make that choice for a book; its own merchant id comes from its own affiliation claim, not from a picker. What the chosen `merchantId` then does on the create is [disputed](#sticker-allocation-an-unresolved-contradiction). | `GET /api/crm-service/merchants/{id}` with the merchant id taken from the operator's own affiliation claim | A15, A51 | Optional partial `name` and `vatNumber`, paged. Returns id, name and VAT number only, and only ACTIVE merchants — deliberately not the back-office merchant list. |
 
 ### TagService — reading a tag as staff
 
@@ -111,8 +146,8 @@ the absence is checkable.
 
 | Endpoint | Permission | Intended caller | Also called by | Must not call | Instead use | Actions | Body contract |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| GET /api/crm-service/merchants/{id} | CRMService.Merchants, CRMService.Merchants.View | Merchant | — | Refund Point resolving a merchant it does not own — *no grant* on another merchant's CRM record. The `TagService` projection exists because the Refund Point has none. | `GET /api/tag-service/sticker-header/sticker-line/{stickerLineNumber}/merchant-info` when the book is allocated; `GET /api/tag-service/tag/merchants-for-creation` when it is not | A17, A50 | `id` in the path. The **full** merchant record — external identifier, tax office, chain code, parent and HQ identity, lifecycle state, e-mail and telephone — all of which the `TagService` projection deliberately withholds. |
-| GET /api/crm-service/merchants/{id}/product-group | CRMService.Merchants, CRMService.Merchants.ViewProductGroupList | Merchant | — | Refund Point pricing a merchant it does not own — *no grant* on another merchant's CRM record. | `GET /api/tag-service/sticker-header/sticker-line/{stickerLineNumber}/merchant-info`, whose projection carries the same product groups with `isDefault` and `vatRate` | A16, A49 | `id` in the path. This is the **per-merchant relation**, which is where `isDefault` and `vatRate` live. `productGroupId` is the id of the global catalogue entry, which carries neither. |
+| GET /api/crm-service/merchants/{id} | CRMService.Merchants, CRMService.Merchants.View | Merchant | — | Refund Point resolving a merchant it does not own — *no grant*: `CRMService.Merchants.View` is a merchant-side grant, and the registry has only a merchant reaching it (A17, A50). The annotation is a role permission, not a per-record rule, so this says nothing about *which* merchant records it covers — what it says is that the Refund Point path is not built on it, and the `TagService` projection exists to serve that path instead. | `GET /api/tag-service/sticker-header/sticker-line/{stickerLineNumber}/merchant-info` when the book is allocated; `GET /api/tag-service/tag/merchants-for-creation` when it is not | A17, A50 | `id` in the path. The **full** merchant record — external identifier, tax office, chain code, parent and HQ identity, lifecycle state, e-mail and telephone — all of which the `TagService` projection deliberately withholds. |
+| GET /api/crm-service/merchants/{id}/product-group | CRMService.Merchants, CRMService.Merchants.ViewProductGroupList | Merchant | — | Refund Point pricing a merchant it does not own — *no grant*: as with the merchant detail above, `CRMService.Merchants.ViewProductGroupList` is a merchant-side grant that the registry never shows a Refund Point holding (A16, A49), not a per-record scope rule. | `GET /api/tag-service/sticker-header/sticker-line/{stickerLineNumber}/merchant-info`, whose projection carries the same product groups with `isDefault` and `vatRate` | A16, A49 | `id` in the path. This is the **per-merchant relation**, which is where `isDefault` and `vatRate` live. `productGroupId` is the id of the global catalogue entry, which carries neither. |
 
 ### TravellerService
 
@@ -149,6 +184,37 @@ instead. `— contrast` in `Actions` is what says so.
 | GET /api/crm-service/merchants | CRMService.Merchants, CRMService.Merchants.ViewList | Admin, back-office merchant management | — | Refund Point choosing a merchant for an unallocated sticker book — *no grant* expected on the back-office list, which also exposes external identifier, chain code, parent and HQ identity and lifecycle status. | `GET /api/tag-service/tag/merchants-for-creation`, which exists precisely so the counter picker does not read the back-office list | — contrast | The full back-office filter set, paged. |
 | PUT /api/tag-service/sticker-header/assign-merchant/{stickerLineNumber} | TagService.StickerHeaders, TagService.StickerHeaders.AssignMerchant | Sticker-stock administration | — | — | — | — contrast | `stickerLineNumber` in the path, `merchantId` in the query. No QR flow calls it: both scan flows send `merchantId` on the create instead. Whether that is right, or whether this explicit call is the **required** first step for an unallocated line, is exactly what [Sticker allocation: an unresolved contradiction](#sticker-allocation-an-unresolved-contradiction) turns on — and that this endpoint and `PUT .../assign-merchant-from-claim/{stickerLineNumber}` exist at all, with their own permissions, is the strongest evidence that allocation is meant to be its own act. |
 | POST /api/tag-service/tag/{id}/merchant-individual-signature | TagService.Tags, TagService.Tags.AddMerchantIndividualSignature | Merchant attaching a signature to a tag that has none | — | — | — | — contrast | `id` in the path, the base64 image in the body; fails if the tag already has a merchant signature. It is the only way to attach one after creation — so the field missing from `CreateTagByStickerLineRequestDto` is repairable in principle. No QR flow calls it, so in practice nothing repairs it. |
+
+### Draft or Issued: `status` and `traveller` are coupled
+
+Both create endpoints take a **`status`** of `Draft` or `Issued`
+(`UniRefund_TagService_Tags_TagCreationStatus`), and both take an optional
+**`traveller`**. They are not independent, and the choice is the **caller's** — not a
+server default a caller can leave alone:
+
+> `status: "Issued"` requires a traveller on the request; without one the backend
+> expects `"Draft"`, which the traveller can later claim by scanning the tag QR.
+> — `super-app/src/actions/TagService/post.ts:9-11`
+
+So there are two ways to put a traveller on a tag, and the first is easy to miss
+because it is not an endpoint of its own:
+
+- **At creation** — send `traveller` and `status: "Issued"` in the create call. One
+  round trip, no assign call. This is what both apps do whenever a traveller was
+  captured before the create: `status: args.traveller ? "Issued" : "Draft"` at
+  `super-app/src/screens/staff/StickerTag/stickerTag.logic.ts:146` and `:214`, and the
+  same conditional at
+  `web-app/apps/web/src/app/[lang]/(main)/(unirefund)/operations/scan-sticker/client.tsx:671`
+  and `:694`. Both apps send it on **both** create paths.
+- **After creation** — send `status: "Draft"`, omit `traveller`, and let someone attach
+  one later. See [I need to put a traveller on a
+  tag](#i-need-to-put-a-traveller-on-a-tag).
+
+`Draft` is therefore not a fallback: **it is what makes a tag claimable at all.** Every
+"the tag has no traveller yet, so the claim is offered" statement elsewhere in this
+file is downstream of a create call that chose `Draft`. A caller who omits `status`
+takes whatever the server decides and should not assume the claim path applies to the
+resulting tag.
 
 ## Sticker allocation: an unresolved contradiction
 
@@ -300,17 +366,33 @@ the line is allocated** — accepted, and doing nothing. What it does on an unal
 line is the one thing in this table the SDK does not settle: see [Sticker allocation:
 an unresolved contradiction](#sticker-allocation-an-unresolved-contradiction).
 
+Whichever create you are entitled to, **`status` and `traveller` are yours to set**, and
+setting them is how a tag comes out either claimable or already assigned. That is a
+separate decision from which endpoint creates the tag, and it is the one this table
+does not answer — see [Draft or Issued: `status` and `traveller` are
+coupled](#draft-or-issued-status-and-traveller-are-coupled).
+
 ### I need to put a traveller on a tag
 
 | Caller and need | Correct endpoint | Permission |
 | --- | --- | --- |
-| Merchant, Refund Point or Customs staff assigning a traveller to a Draft tag | `POST /api/tag-service/tag/{id}/assign-traveller` | `TagService.Tags, TagService.Tags.AssignTraveller` |
+| Staff who **already have** the traveller when the tag is created — no assign call at all | The create itself: `traveller` plus `status: "Issued"` on `POST /api/tag-service/tag` or `POST /api/tag-service/tag/by-sticker-line` | `TagService.Tags.Create` or `TagService.Tags.CreateByStickerLine` — whichever create the caller is entitled to |
+| Merchant, Refund Point or Customs staff assigning a traveller to a tag already created as a Draft | `POST /api/tag-service/tag/{id}/assign-traveller` | `TagService.Tags, TagService.Tags.AssignTraveller` |
 | A traveller claiming a tag, holding its number and sales amount | `POST /api/tag-service/tag/traveller-self-assign` | `TagService.Tags, TagService.Tags.TravellerSelfAssign` |
 | A traveller claiming a tag, holding only its Guid id | `POST /api/tag-service/tag/traveller-self-assign/by-tag-id` — **defined but called by no app** | `TagService.Tags, TagService.Tags.TravellerSelfAssignByTagId` |
 
-Staff-assigns-a-traveller and traveller-claims-their-own-tag are **different
-operations**, and the names do not make that obvious. The bodies do: staff send an
-entire traveller identity and no proof, because being authorised staff *is* the
+**The first row is the one a reader misses**, because it is not an endpoint of its own
+and so does not appear in the endpoint tables as an answer to this question. Both apps
+take it whenever a traveller was captured before the create — one round trip, no
+assign call — and fall back to `Draft` only when there is nobody to attach. It needs no
+extra grant beyond the create the caller was already making. See [Draft or Issued:
+`status` and `traveller` are coupled](#draft-or-issued-status-and-traveller-are-coupled).
+The three rows below it are the post-create paths, and they exist because a tag issued
+as a Draft has to be claimable later.
+
+Among those three, staff-assigns-a-traveller and traveller-claims-their-own-tag are
+**different operations**, and the names do not make that obvious. The bodies do: staff
+send an entire traveller identity and no proof, because being authorised staff *is* the
 proof; a traveller sends no identity at all — it comes from their claims — and a
 sales amount as proof instead.
 
@@ -319,7 +401,7 @@ Getting this backwards fails in the worse direction. A staff console calling
 traveller is derived from the caller. The doc comment forbids a Tenant context
 outright for exactly that reason.
 
-The third row is a genuine gap rather than a choice. A traveller who scanned a tag QR
+The last row is a genuine gap rather than a choice. A traveller who scanned a tag QR
 holds the Guid and nothing else, which is precisely the case the by-tag-id endpoint
 was written for. No app calls it, so both apps read the tag publicly first and take
 the sales amount out of that response to feed the by-number claim.
