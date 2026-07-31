@@ -365,9 +365,18 @@ those are where the real traps are:
   result — it silently drops a signature they captured. That is a DTO fact, not a
   permission fact, and no 403 will ever tell you.
 - `merchantId` on the Refund Point path is **ignored by the backend once the sticker
-  line is allocated**, and sending it on an *unallocated* line allocates the whole
-  sticker header to that merchant, permanently. Same field, two completely
-  different consequences depending on state.
+  line is allocated**. What happens on an *unallocated* line is, as of 2026-07-31,
+  **contradicted by the SDK's own two doc comments** and must be recorded as a
+  Finding rather than asserted: `by-sticker-line` says *"the sticker header must
+  already be assigned to a merchant, otherwise the request is rejected"*, while
+  `merchant-info` says *"the operator must choose a merchant — and creating the tag
+  allocates the whole sticker header to that choice, permanently"*. Both cannot be
+  true. That `StickerHeaders.AssignMerchant` and `.AssignMerchantFromClaim` exist as
+  separate endpoints suggests allocation is its own explicit call and the rejection
+  is current — in which case the web page's unallocated-book flow is broken, not
+  merely dangerous. The guide states the disagreement and whose resolution is
+  needed; it does not pick a side. *(This spec previously asserted the permanent-
+  allocation reading as fact.)*
 
 ### Overlapping endpoints
 
@@ -379,9 +388,14 @@ in [Primary purpose](#primary-purpose) is the worked example. The others to writ
   `merchantName`/`vatNumber` fields, `TagService` merchant-info, CRM merchant
   detail, and `GET /tag/merchants-for-creation`. Four sources, and which is correct
   depends on whether the caller owns the merchant and whether the book is allocated.
-- **Look up a tag** — by id, by tag number, by encrypted tag number, or through
-  `public/tag*`. Four routes to one entity, split by whether the caller is
-  authenticated and whether the id is being used as a credential.
+- **Look up a tag** — by id, by tag number, or through `public/tag*`, split by
+  whether the caller is authenticated and whether the id is being used as a
+  credential. *(Corrected 2026-07-31: this list also named "by encrypted tag
+  number". Task 5 established that no such method exists in any generated SDK,
+  even though the permission `TagService.Tags.DetailByEncryptedTagNumber` is in
+  `policies.json` and the cross-tenant lookup's own doc comment tells callers to
+  "use the by-encrypted variant, whose unpredictable token is the credential".
+  A documented, permissioned, ungenerated endpoint is a Finding, not a branch.)*
 - **Create a tag** — `POST /tag` versus `POST /tag/by-sticker-line`, which is
   capability `#29` and already decided; recorded here so the decision is findable
   from the endpoint rather than only from the catalogue.
