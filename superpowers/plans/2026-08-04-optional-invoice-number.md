@@ -19,6 +19,7 @@
   - TR: `Boş bırakırsanız otomatik olarak oluşturulur.`
 - **No hardcoded UI strings.** Both locales get the key before any component reads it.
 - **Never edit generated files.** Not `super-app/src/data/language-data/*.gen.json`, not `web-app/apps/web/src/language-data/i18n/*.gen.json`, not `**/saas/**`. Regenerate with the repo's `init` script.
+- **The generated language bundles are gitignored in both repos** — `super-app/.gitignore:27` (`src/data/*/*.gen.json`) and `web-app/.gitignore:150`. They are never committed; every environment regenerates them by running `init`. So an i18n change commits **only** the hand-written `resources/*.json`, and whoever pulls it runs `init` to pick the key up. Do not force-add an ignored path.
 - **`t[...]` is typed from the generated bundle.** A key added only to `resources/*.json` does not typecheck until `init` runs. Key first, `init` second, component third — in that order, inside one task.
 - **No `useEffect`** for anything in this plan. Nothing here needs one.
 - **web-app `data-testid`:** required on `Label`, `Input`, `Button`, and the other components listed in `web-app/.claude/rules/data-testid.md`. Plain HTML elements (`p`, `div`, `span`) are exempt — the new hint is a `<p>` and needs none.
@@ -334,8 +335,11 @@ is optional and renders nothing when absent.
 
 - [ ] **Step 7: Commit**
 
+The regenerated `.gen.json` bundles are **not** staged — they are gitignored
+(see Global Constraints). Only the four hand-written files are committed.
+
 ```bash
-git add src/localization/resources/en-US.json src/localization/resources/tr-TR.json src/data/language-data/en-US.gen.json src/data/language-data/tr-TR.gen.json src/components/Input.tsx src/screens/staff/StickerTag/StickerTagScreen.tsx
+git add src/localization/resources/en-US.json src/localization/resources/tr-TR.json src/components/Input.tsx src/screens/staff/StickerTag/StickerTagScreen.tsx
 git commit -m "feat(sticker-tag): describe the invoice number as auto-generated"
 ```
 
@@ -769,8 +773,12 @@ Expected: clean.
 
 - [ ] **Step 5: Commit**
 
+The regenerated `i18n/*.gen.json` bundles are **not** staged — they are gitignored
+(`web-app/.gitignore:150`, see Global Constraints). Only the two hand-written
+resource files are committed.
+
 ```bash
-git add src/language-data/unirefund/TagService/resources/en.json src/language-data/unirefund/TagService/resources/tr.json src/language-data/i18n/en.gen.json src/language-data/i18n/tr.gen.json
+git add src/language-data/unirefund/TagService/resources/en.json src/language-data/unirefund/TagService/resources/tr.json
 git commit -m "feat(i18n): add the auto-generated invoice number hint"
 ```
 
