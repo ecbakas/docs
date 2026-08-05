@@ -342,7 +342,12 @@ import {
   postSetActiveDocumentApi,
   postSetPrimaryDocumentApi,
 } from "../post";
-import { getTravellerServiceClient } from "../lib";
+// `@/actions/lib`, not `../lib`: this file sits in `__tests__/`, so a relative
+// `../lib` would target `src/actions/TravellerService/lib` — a module that does
+// not exist — and the mock would silently fail to intercept the one `post.ts`
+// actually imports. The alias resolves to the same `src/actions/lib` the source
+// reaches via its own `../lib`. Same idiom as `src/actions/auth/__tests__/actions.test.ts`.
+import { getTravellerServiceClient } from "@/actions/lib";
 
 // `fetchRequest` is the auth/retry wrapper; here it just runs the callback so
 // the assertions are about what the SDK is asked for, not about token refresh.
@@ -357,7 +362,7 @@ const proveDocument = jest.fn().mockResolvedValue({});
 const setPrimary = jest.fn().mockResolvedValue({});
 const setActive = jest.fn().mockResolvedValue({});
 
-jest.mock("../lib", () => ({
+jest.mock("@/actions/lib", () => ({
   getTravellerServiceClient: jest.fn(),
 }));
 
