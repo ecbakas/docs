@@ -452,7 +452,13 @@ Then:
 git grep -n "presignedUrl" -- apps/
 ```
 
-Expected: exactly **two** matches, both in `verify/page.tsx` from Task 2 — the explanatory comment and the has-blob check on the line below it. Nothing else.
+Expected: matches only in `verify/page.tsx` from Task 2 — its explanatory comments, the
+destructure that keeps the field off the `Form` prop, and the has-blob check. Nothing in any
+other file.
+
+**This grep is necessary but not sufficient.** It proves no *identifier* named `presignedUrl`
+survives outside the page; it cannot prove the *value* never reaches the client, because the
+value can travel inside an object. Step 3b covers that.
 
 Note this grep is case-sensitive and will not match `getFilePresignedUrlApi` (capital `P`), which is why Step 1 needs both greps. It also will not match the prose "presigned URL" in `operations/refunds/[refundId]/_components/refund-signatures.tsx:92` — that file is an explicit non-goal in the spec. If a match does appear there, leave it alone.
 
@@ -466,11 +472,34 @@ Expected: PASS.
 Run the repo lint script.
 Expected: PASS.
 
+- [ ] **Step 3b: Rendered-HTML leak check (the greps in Step 1 cannot do this)**
+
+The text greps in Step 1 only match the literal string `presignedUrl`. They are structurally
+blind to a leak that travels as an object — `<Form fileDetails={selectedFile} />` contains no
+such substring, yet Next.js serializes the whole runtime object into the flight payload
+embedded in the page HTML, narrower client-component prop types notwithstanding. Exactly that
+leak was found on the verify page during Task 2 review.
+
+So verify against the **served HTML**, not the source. With a signed-in session cookie:
+
+```bash
+curl -s -b "<session cookie>" \
+  'http://localhost:3000/en/file/verification/<real fileId>/verify' \
+  | grep -c -iE 'X-Amz-Signature|wasabisys'
+```
+
+Expected: `0`.
+
+This needs real credentials and a real `fileId`, so it belongs to the manual handoff rather
+than to an agent. Any non-zero count means a presigned URL is still crossing the
+server/client boundary somewhere on that page — find which prop carries it.
+
 - [ ] **Step 4: Run the manual checklist end to end**
 
-Confirm all five, in one dev-server session:
+Confirm all six, in one dev-server session:
 
-1. Verify page renders the PDF, no `wasabisys.com` in the network tab, no `X-Amz-Signature` in view-source.
+1. Verify page renders the PDF, no `wasabisys.com` in the network tab, and the Step 3b
+   rendered-HTML check returns `0`.
 2. `file/list` download action saves with the `blobName` filename.
 3. `file/verification` download action saves with the `fileName` filename.
 4. `curl` with no session cookie → 401; malformed id → 400.
