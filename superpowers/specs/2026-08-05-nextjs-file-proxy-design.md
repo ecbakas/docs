@@ -41,10 +41,39 @@ on an authenticated session.
 
 ## Non-goals
 
-- **Refund signature images.** `operations/refunds/[refundId]/_components/refund-signatures.tsx`
-  renders `<img src={travellerSignatureFileUrl}>` from presigned URLs on the
-  refund payload. Those are not addressable by `fileId`, so they need a
-  different route shape. Explicitly out of scope.
+- **Signature images.** Two components render presigned URLs through
+  `next/image`:
+  - `operations/refunds/[refundId]/_components/refund-signatures.tsx`
+    (`travellerSignatureFileUrl`, `refundPointSignatureFileUrl`)
+  - `operations/tax-free-tags/[tagId]/_components/tag-signatures.tsx`
+    (`travellerSignatureFileUrl`, `merchantIndividualSignatureFileUrl`)
+
+  These **are** addressable by `fileId` — `RefundSignaturesDto` and
+  `TagSignaturesDto` both carry `*FileId` fields beside the `*FileUrl` ones — so
+  the `/api/file/{fileId}` route from this spec would serve them as-is. They are
+  still out of scope, for three reasons that make them a separate piece of work:
+
+  1. **Changing the `<Image src>` would not close the leak.**
+     `getRefundSignaturesByIdApi` and `getTagByIdSignaturesApi` return the
+     `*FileUrl` fields in the payload the client receives. Closing the leak means
+     stripping those fields server-side inside both actions — a change to an
+     action's return contract, not a call-site change.
+  2. **`next/image` would break auth.** Today `<Image src={presignedUrl}>` works
+     *because* the Next optimizer fetches the URL server-side, which is why
+     `next.config.js` needs a `remotePatterns` entry for the Wasabi host. Pointing
+     `src` at `/api/file/{id}` makes the optimizer fetch it without the browser's
+     session cookie, yielding 401 and a broken image. Each `<Image>` would need
+     `unoptimized`.
+  3. **Unverified permission overlap.** `/api/file/{fileId}` resolves via
+     `getFilePresignedUrlApi`, requiring `FileService.File` +
+     `FileService.File.GetPresignedUrl`. Signature viewing is gated on
+     `RefundService.Refunds.ViewSignatures` / `TagService.Tags.ViewSignatures`.
+     Whether signature files resolve through FileService, and whether
+     signature-viewers hold the FileService permission, are runtime facts that
+     could not be settled from the code. If either is false, signatures 404.
+
+  Doing this properly needs a runtime spike against a live session first. Tracked
+  as follow-up work.
 - **Range-request support.** See Decisions.
 - **A `downloadUri` prop on `DocumentViewer`.** See Known limitation.
 
