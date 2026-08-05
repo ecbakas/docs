@@ -693,11 +693,13 @@ Expected: `tsc exit=0`. A failure here names a key that is still referenced in c
 ```bash
 pnpm run lint
 cd c:/unirefund/web-app
-node scripts/find-unused-i18n.mjs --app=web | tail -2
+node scripts/find-unused-i18n.mjs --app=web
 echo "exit=$?"
 ```
 
 Expected: lint clean, `0 unreachable key(s)`, `exit=0`.
+
+Do not pipe the detector into `tail` here. `$?` would then report `tail`'s status, which is always 0, making the exit assertion vacuous. With every key pruned the output is only two lines anyway.
 
 - [ ] **Step 8: Commit**
 
@@ -783,11 +785,13 @@ Expected: `tsc exit=0` and lint clean. On a type error, treat the named key as a
 
 ```bash
 cd c:/unirefund/web-app
-node scripts/find-unused-i18n.mjs --app=ssr | tail -2
+node scripts/find-unused-i18n.mjs --app=ssr
 echo "exit=$?"
 ```
 
 Expected: `0 unreachable key(s)`, `exit=0`.
+
+Do not pipe the detector into `tail` here — `$?` would report `tail`'s status, which is always 0, making the exit assertion vacuous.
 
 - [ ] **Step 6: Commit**
 
