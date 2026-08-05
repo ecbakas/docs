@@ -43,7 +43,7 @@
 
 **Files:**
 - Modify: `packages/ayasofyazilim-ui/src/custom/master-data-grid/hooks/use-columns.tsx` (7 reads)
-- Modify: `packages/ayasofyazilim-ui/src/custom/master-data-grid/components/table/cell-renderer.tsx` (12 reads, 18 occurrences)
+- Modify: `packages/ayasofyazilim-ui/src/custom/master-data-grid/components/table/cell-renderer.tsx` (12 keys, 20 occurrences)
 - Modify: `apps/web/src/language-data/core/Default/resources/en.json`
 - Modify: `apps/web/src/language-data/core/Default/resources/tr.json`
 - Create: `scripts/i18n-untranslated.json`
@@ -464,7 +464,8 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 **Files:**
 - Create: `scripts/find-missing-i18n.mjs`
-- Modify: `package.json` (one `scripts` entry)
+- Create: `scripts/verify-i18n-queue.mjs`
+- Modify: `package.json` (two `scripts` entries)
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
@@ -511,20 +512,56 @@ node scripts/find-missing-i18n.mjs --app=nope > /dev/null 2>&1; echo "exit=$?"
 
 Expected: `exit=2`.
 
-- [ ] **Step 5: Add the convenience script**
+- [ ] **Step 5: Create the queue verifier**
+
+Create `scripts/verify-i18n-queue.mjs` with exactly the content in Appendix B.
+
+The queue is the only record of which `tr` values are English placeholders, because a `tr` value equal to its `en` value is indistinguishable from a legitimately identical translation. Without this check the queue rots silently: a translator fills a value, forgets to remove the entry, and the record stops meaning anything. This makes that a loud failure.
+
+It deliberately does **not** check the reverse direction — a key with `tr == en` that is not queued. Hundreds of existing keys are legitimately identical across locales, so that check would be noise.
+
+- [ ] **Step 6: Verify the queue checker on both a clean and a drifted queue**
+
+```bash
+cd c:/unirefund/web-app
+node scripts/verify-i18n-queue.mjs
+echo "exit=$?"
+```
+
+Expected: `queue entries: 14`, `still awaiting translation (tr == en): 14`, `TRANSLATED but still queued: 0`, `BROKEN entries: 0`, `exit=0`.
+
+Then prove it actually detects drift, restoring the file afterwards:
+
+```bash
+F=apps/web/src/language-data/core/Default/resources/tr.json
+cp "$F" "$F.bak"
+node -e "
+const fs=require('fs');const f='$F';
+const t=fs.readFileSync(f,'utf8');
+fs.writeFileSync(f,t.replace('\"column.selectAll\": \"Select all\"','\"column.selectAll\": \"Tümünü seç\"'));
+"
+node scripts/verify-i18n-queue.mjs; echo "exit=$?"
+mv "$F.bak" "$F"
+git status --porcelain -- apps/web/src/language-data
+```
+
+Expected: the drifted run reports `TRANSLATED but still queued: 1`, names `Default :: column.selectAll tr="Tümünü seç"`, and exits 1. The final `git status` must print nothing — if `tr.json` is left modified, restore it before continuing.
+
+- [ ] **Step 7: Add the convenience scripts**
 
 In `package.json`, add after the existing `"i18n:unused"` entry:
 
 ```json
     "i18n:missing": "node scripts/find-missing-i18n.mjs",
+    "i18n:queue": "node scripts/verify-i18n-queue.mjs",
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 cd c:/unirefund/web-app
 git status --porcelain
-git add scripts/find-missing-i18n.mjs package.json
+git add scripts/find-missing-i18n.mjs scripts/verify-i18n-queue.mjs package.json
 git commit -m "chore(i18n): add schema-derived missing-key checker
 
 Inverse of find-unused-i18n. Resolves each createUiSchemaWithResource call
@@ -741,22 +778,14 @@ The unused check matters here: the added keys must be reachable. All of them sit
 - [ ] **Step 8: Verify the queue is internally consistent**
 
 ```bash
-node -e "
-const fs=require('fs'),path=require('path');
-const q=JSON.parse(fs.readFileSync('scripts/i18n-untranslated.json','utf8'));
-let bad=0;
-for(const e of q){
-  const dir=['core','unirefund'].map(s=>path.join('apps/web/src/language-data',s,e.service,'resources')).find(fs.existsSync);
-  if(!dir){bad++;console.log('no such service',e.service);continue;}
-  const en=JSON.parse(fs.readFileSync(path.join(dir,'en.json'),'utf8'));
-  const tr=JSON.parse(fs.readFileSync(path.join(dir,'tr.json'),'utf8'));
-  if(!(e.key in en)||!(e.key in tr)){bad++;console.log('queued key absent',e.service,e.key);}
-}
-console.log('queue entries',q.length,'| problems',bad);
-"
+cd c:/unirefund/web-app
+node scripts/verify-i18n-queue.mjs
+echo "exit=$?"
 ```
 
-Expected: `queue entries 187 | problems 0`.
+Expected: `queue entries: 187`, `still awaiting translation (tr == en): 187`, `TRANSLATED but still queued: 0`, `BROKEN entries: 0`, `exit=0`.
+
+A non-zero `TRANSLATED but still queued` here would mean a key you just added already had a real Turkish value that the fill overwrote — investigate that key rather than deleting the queue entry.
 
 - [ ] **Step 9: Commit**
 
@@ -1233,6 +1262,116 @@ try {
   process.exit(main());
 } catch (error) {
   console.error(`find-missing-i18n: ${error.message}`);
+  process.exit(2);
+}
+```
+
+---
+
+## Appendix B: `scripts/verify-i18n-queue.mjs`
+
+Validated during planning: reports 14 waiting / 0 translated / 0 broken with exit 0 on the real queue, and correctly reports `TRANSLATED but still queued: 1` with exit 1 when a queued key's `tr` is changed.
+
+```js
+#!/usr/bin/env node
+/**
+ * Verifies scripts/i18n-untranslated.json against the resource files.
+ *
+ * Keys in that queue carry the English string in tr.json as a deliberate
+ * placeholder - the project's choice is that a translator fills them, not that
+ * Claude invents Turkish. A tr value equal to its en value is indistinguishable
+ * from a legitimately identical translation ("Email", "Fax"), so the queue is the
+ * only record of which ones are still waiting. This check keeps that record honest:
+ *
+ *   - a queued key that no longer has tr == en has been TRANSLATED; the entry is
+ *     stale and must be removed, which is a loud failure rather than silent rot.
+ *   - a queued key missing from either locale file, or naming an unknown service,
+ *     is a broken entry.
+ *
+ * The reverse direction - a key with tr == en that is NOT queued - is deliberately
+ * not checked. Hundreds of existing keys are legitimately identical across locales,
+ * so that check would be noise rather than signal.
+ *
+ *   node scripts/verify-i18n-queue.mjs [--app=web] [--root=<path>]
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const RESOURCE_SCOPES = ["core", "unirefund"];
+
+function parseArgs(argv) {
+  const args = { app: "web", root: path.resolve(SCRIPT_DIR, "..") };
+  for (const arg of argv) {
+    if (arg.startsWith("--app=")) args.app = arg.slice("--app=".length);
+    else if (arg.startsWith("--root=")) args.root = path.resolve(arg.slice("--root=".length));
+    else throw new Error(`Unknown argument: ${arg}`);
+  }
+  return args;
+}
+
+function resourceDir(root, app, service) {
+  for (const scope of RESOURCE_SCOPES) {
+    const dir = path.join(root, "apps", app, "src", "language-data", scope, service, "resources");
+    if (fs.existsSync(dir)) return dir;
+  }
+  return null;
+}
+
+function main() {
+  const { app, root } = parseArgs(process.argv.slice(2));
+  const queueFile = path.join(root, "scripts", "i18n-untranslated.json");
+  if (!fs.existsSync(queueFile)) {
+    console.log("no queue file - nothing to verify");
+    return 0;
+  }
+  const queue = JSON.parse(fs.readFileSync(queueFile, "utf8"));
+
+  const translated = [];
+  const broken = [];
+  let waiting = 0;
+
+  const cache = new Map();
+  for (const entry of queue) {
+    const dir = resourceDir(root, app, entry.service);
+    if (!dir) { broken.push({ ...entry, why: "unknown service" }); continue; }
+    if (!cache.has(dir)) {
+      cache.set(dir, {
+        en: JSON.parse(fs.readFileSync(path.join(dir, "en.json"), "utf8")),
+        tr: JSON.parse(fs.readFileSync(path.join(dir, "tr.json"), "utf8")),
+      });
+    }
+    const { en, tr } = cache.get(dir);
+    if (!(entry.key in en)) { broken.push({ ...entry, why: "absent from en.json" }); continue; }
+    if (!(entry.key in tr)) { broken.push({ ...entry, why: "absent from tr.json" }); continue; }
+    if (tr[entry.key] !== en[entry.key]) {
+      translated.push({ ...entry, tr: tr[entry.key] });
+      continue;
+    }
+    waiting += 1;
+  }
+
+  console.log(`queue entries: ${queue.length}`);
+  console.log(`  still awaiting translation (tr == en): ${waiting}`);
+  console.log(`  TRANSLATED but still queued:           ${translated.length}`);
+  console.log(`  BROKEN entries:                        ${broken.length}`);
+
+  if (translated.length) {
+    console.log(`\nThese have been translated - remove them from the queue:`);
+    for (const e of translated) console.log(`  ${e.service} :: ${e.key}  tr=${JSON.stringify(e.tr)}`);
+  }
+  if (broken.length) {
+    console.log(`\nBroken entries:`);
+    for (const e of broken) console.log(`  ${e.service} :: ${e.key} - ${e.why}`);
+  }
+  return translated.length === 0 && broken.length === 0 ? 0 : 1;
+}
+
+try {
+  process.exit(main());
+} catch (error) {
+  console.error(`verify-i18n-queue: ${error.message}`);
   process.exit(2);
 }
 ```
