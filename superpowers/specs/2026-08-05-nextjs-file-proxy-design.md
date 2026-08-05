@@ -154,9 +154,14 @@ later, adding `Range` passthrough (forward the request header, echo 206 and
 
 ### Filename comes from the caller as `?name=`
 
-The call sites already hold the filename — `blobName` on both table row DTOs,
-`fileName` on `FileForHumanValidationDetailDto` — so resolving it inside the
-route would cost a second backend call on every download.
+The call sites already hold the filename, so resolving it inside the route would
+cost a second backend call on every download. The field name differs per DTO:
+
+| Call site | Row DTO | Id field | Name field |
+|---|---|---|---|
+| `file/list` table | `FileResponseListDto` | `id` | `blobName` |
+| `file/verification` table | `FileForHumanValidationDto` | `fileId` | `fileName` |
+| verify page | `FileForHumanValidationDetailDto` | `fileId` | `fileName` |
 
 `name` is sanitized before use: replace every character outside `[\w .\-()]`
 with `_`, then cap at 200 characters, falling back to `fileId` when the result
@@ -197,13 +202,21 @@ why the field is read.
 collapse from an async action call to a direct open:
 
 ```tsx
+// file/list — FileResponseListDto
 onClick: (row) => {
   const name = encodeURIComponent(row.blobName ?? "");
   window.open(`/api/file/${row.id}?download=1&name=${name}`, "_blank");
 }
+
+// file/verification — FileForHumanValidationDto
+onClick: (row) => {
+  const name = encodeURIComponent(row.fileName);
+  window.open(`/api/file/${row.fileId}?download=1&name=${name}`, "_blank");
+}
 ```
 
-Note the differing id field: `row.id` in `list`, `row.fileId` in `verification`.
+The id and name fields differ between the two: `id`/`blobName` versus
+`fileId`/`fileName`. See the table under Decisions.
 
 This drops the `getFilePresignedUrlApi` import from both files.
 `getFilePresignedUrlApi` itself stays in `@repo/actions` — the route handler
@@ -231,7 +244,8 @@ a shared package for in this change.
 **Manual:**
 1. Verify page renders the PDF, with **no request to `wasabisys.com`** in the
    network tab and no presigned URL in view-source.
-2. Both table download actions save a file named from `blobName`.
+2. Both table download actions save a file with the real name — `blobName` in
+   the `list` table, `fileName` in the `verification` table.
 3. `curl` to `/api/file/{fileId}` with no session cookie → 401.
 4. A valid `fileId` whose file has no stored blob → verify page still shows the
    `Empty` state.
