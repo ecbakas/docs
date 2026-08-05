@@ -1427,17 +1427,22 @@ export default function DocumentsScreen() {
               </Text>
             </View>
           ) : (
-            documents.map((document) => (
-              <DocumentCard
-                key={document.travellerDocumentId ?? document.affiliationId}
-                document={document}
-                isActive={document.travellerDocumentId === activeDocumentId}
-                onSetPrimary={() =>
-                  void setPrimary(document.travellerDocumentId ?? "")
-                }
-                disabled={pendingId !== null}
-              />
-            ))
+            documents.map((document) => {
+              // Every id on this DTO is optional. Falling back to `""` would
+              // post set-primary against an empty id and badge a document as
+              // in-use whenever the claim is also empty — so a row without an
+              // id simply gets no action instead.
+              const id = document.travellerDocumentId;
+              return (
+                <DocumentCard
+                  key={id ?? document.affiliationId}
+                  document={document}
+                  isActive={!!id && id === activeDocumentId}
+                  onSetPrimary={id ? () => void setPrimary(id) : undefined}
+                  disabled={pendingId !== null}
+                />
+              );
+            })
           )}
 
           <Button
@@ -1874,10 +1879,6 @@ jest.mock("@/screens/traveller/Documents/useDocumentSwitcher", () => ({
   useDocumentSwitcher: () => switcher,
 }));
 
-jest.mock("@/providers/LocalizationProvider", () => ({
-  useLocalization: () => ({ t: (key: string) => key }),
-}));
-
 // The sheet renders a portal that needs a provider; the pill's own behaviour is
 // what is under test, so stand the sheet in for one.
 jest.mock(
@@ -1998,18 +1999,21 @@ export function DocumentSwitcherSheet({
         </Text>
 
         {documents.map((document) => {
-          const id = document.travellerDocumentId ?? "";
-          const isSelected = id === selectedId;
-          const isActive = id === activeDocumentId;
+          // Optional on the DTO. An `?? ""` fallback would make a row without an
+          // id compare equal to an empty claim and selectable as `""`, which
+          // set-active would reject — so such a row is inert.
+          const id = document.travellerDocumentId;
+          const isSelected = !!id && id === selectedId;
+          const isActive = !!id && id === activeDocumentId;
           return (
             <Pressable
-              key={id || document.affiliationId}
-              onPress={() => onSelect(id)}
-              disabled={isSwitching}
+              key={id ?? document.affiliationId}
+              onPress={() => id && onSelect(id)}
+              disabled={isSwitching || !id}
               className={cn(
                 "flex-row items-center gap-3 rounded-2xl border p-3",
                 isSelected ? "border-primary bg-gray-50" : "border-gray-200",
-                isSwitching && "opacity-50",
+                (isSwitching || !id) && "opacity-50",
               )}
             >
               <View className="flex-1">
