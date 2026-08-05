@@ -506,17 +506,147 @@ git commit -m "feat(traveller): add prove-document, set-primary and set-active a
 
 A verbatim move, not a rewrite. `verify()` currently lives privately inside `useTravellerDidit` (`src/hooks/useTravellerDidit.tsx:30-70`) and Add-document needs the identical five-terminal-state reduction. Copying it would mean two places to fix the next time a Didit state changes meaning.
 
-**No new tests.** There is no existing test for `useTravellerDidit`, and a behaviour-preserving extraction is verified by the type checker plus the unchanged suite. Its interface is pinned by usage in Task 5, whose tests mock it. Verification for this task is typecheck + lint + the full suite at its baseline numbers.
+The extraction gets its own tests: this reducer is the single gate deciding whether a Didit result becomes proof, and both the auth flows and Add-document now depend on it. Characterisation tests written against the moved code also prove the move preserved behaviour, which is the thing an extraction can silently get wrong.
 
 **Files:**
 - Create: `src/hooks/useDiditVerify.tsx`
 - Modify: `src/hooks/useTravellerDidit.tsx`
+- Test: `src/hooks/__tests__/useDiditVerify.router.test.ts` (`.router.` — it uses `renderHook`)
 
 **Interfaces:**
 - Consumes: `resolveWorkflowId(action)` from `@/utils/didit/workflow`; `startVerificationWithWorkflow` from `@didit-protocol/sdk-react-native`.
 - Produces: `useDiditVerify(): { verify: (action: SSRActionType) => Promise<string | null> }` — resolves to the `sessionId` on an Approved completion, `null` on cancelled / failed / Declined / Pending (each already toasted except cancelled). Task 5 calls `verify("ProveDocument")`.
 
-- [ ] **Step 1: Create the new hook**
+- [ ] **Step 1: Write the failing test**
+
+Create `src/hooks/__tests__/useDiditVerify.router.test.ts`:
+
+```ts
+import { useDiditVerify } from "@/hooks/useDiditVerify";
+import { resolveWorkflowId } from "@/utils/didit/workflow";
+import { startVerificationWithWorkflow } from "@didit-protocol/sdk-react-native";
+import { renderHook } from "@testing-library/react-native";
+
+jest.mock("@/utils/didit/workflow", () => ({
+  resolveWorkflowId: jest.fn(),
+}));
+jest.mock("@didit-protocol/sdk-react-native", () => ({
+  startVerificationWithWorkflow: jest.fn(),
+}));
+
+// `t` returns the key, so assertions name the message rather than its English.
+jest.mock("@/providers/LocalizationProvider", () => ({
+  useLocalization: () => ({ t: (key: string) => key, languageCode: "tr" }),
+}));
+
+const show = jest.fn();
+jest.mock("@/providers/ToastProvider", () => ({
+  useToastRef: () => ({ current: { show } }),
+}));
+
+const resolve = resolveWorkflowId as jest.MockedFunction<
+  typeof resolveWorkflowId
+>;
+const startVerification =
+  startVerificationWithWorkflow as jest.MockedFunction<
+    typeof startVerificationWithWorkflow
+  >;
+
+/** A `completed` result carrying the given decision. */
+function completed(status: string, sessionId = "session-1") {
+  return { type: "completed", session: { status, sessionId } };
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  resolve.mockResolvedValue("workflow-1");
+});
+
+function verifyHook() {
+  const { result } = renderHook(() => useDiditVerify());
+  return result.current.verify;
+}
+
+it("runs the workflow the action resolves to, in the active language", async () => {
+  startVerification.mockResolvedValue(completed("Approved") as never);
+
+  await verifyHook()("ProveDocument");
+
+  expect(resolve).toHaveBeenCalledWith("ProveDocument");
+  expect(startVerification).toHaveBeenCalledWith("workflow-1", {
+    config: { languageCode: "tr", loggingEnabled: __DEV__ },
+  });
+});
+
+it("returns the session id when the verification is approved", async () => {
+  startVerification.mockResolvedValue(completed("Approved", "session-7") as never);
+
+  await expect(verifyHook()("ProveDocument")).resolves.toBe("session-7");
+  expect(show).not.toHaveBeenCalled();
+});
+
+it("reports an unavailable workflow and never starts a verification", async () => {
+  resolve.mockResolvedValue("");
+
+  await expect(verifyHook()("ProveDocument")).resolves.toBeNull();
+  expect(startVerification).not.toHaveBeenCalled();
+  expect(show).toHaveBeenCalledWith(
+    "error",
+    "MobileApp.Auth.Verification.NotAvailable",
+  );
+});
+
+// The traveller chose to cancel; a toast would scold them for it.
+it("is silent when the traveller cancels", async () => {
+  startVerification.mockResolvedValue({ type: "cancelled" } as never);
+
+  await expect(verifyHook()("ProveDocument")).resolves.toBeNull();
+  expect(show).not.toHaveBeenCalled();
+});
+
+it("reports a failed verification", async () => {
+  startVerification.mockResolvedValue({
+    type: "failed",
+    error: { type: "network", message: "boom" },
+  } as never);
+
+  await expect(verifyHook()("ProveDocument")).resolves.toBeNull();
+  expect(show).toHaveBeenCalledWith(
+    "error",
+    "MobileApp.Auth.Verification.Failed",
+  );
+});
+
+// Declined and Pending both *complete*, so only the decision separates them
+// from an approval. Yielding a session id for either would post a rejected or
+// unfinished verification as proof.
+it("returns no session id for a declined decision", async () => {
+  startVerification.mockResolvedValue(completed("Declined") as never);
+
+  await expect(verifyHook()("ProveDocument")).resolves.toBeNull();
+  expect(show).toHaveBeenCalledWith(
+    "error",
+    "MobileApp.Auth.Verification.DeclinedDescription",
+  );
+});
+
+it("returns no session id for a pending decision", async () => {
+  startVerification.mockResolvedValue(completed("Pending") as never);
+
+  await expect(verifyHook()("ProveDocument")).resolves.toBeNull();
+  expect(show).toHaveBeenCalledWith(
+    "info",
+    "MobileApp.Auth.Verification.PendingDescription",
+  );
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `npx jest src/hooks/__tests__/useDiditVerify.router.test.ts`
+Expected: FAIL — cannot resolve module `@/hooks/useDiditVerify`.
+
+- [ ] **Step 3: Create the new hook**
 
 Create `src/hooks/useDiditVerify.tsx` with the body moved out of `useTravellerDidit`, unchanged:
 
@@ -585,7 +715,12 @@ export function useDiditVerify() {
 }
 ```
 
-- [ ] **Step 2: Consume it from `useTravellerDidit`**
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `npx jest src/hooks/__tests__/useDiditVerify.router.test.ts`
+Expected: PASS, 7 tests.
+
+- [ ] **Step 5: Consume it from `useTravellerDidit`**
 
 In `src/hooks/useTravellerDidit.tsx`:
 
@@ -597,25 +732,25 @@ In `src/hooks/useTravellerDidit.tsx`:
 
 The three `useCallback` dependency arrays already list `verify`; that stays correct.
 
-- [ ] **Step 3: Verify nothing else referenced the removed imports**
+- [ ] **Step 6: Verify nothing else referenced the removed imports**
 
 Run: `npm run lint`
-Expected: no new errors versus the baseline count. An unused-import error here means step 2.4 removed too little.
+Expected: no new errors versus the baseline count. An unused-import error here means step 5.4 removed too little.
 
-- [ ] **Step 4: Verify typecheck**
+- [ ] **Step 7: Verify typecheck**
 
 Run: `npm run typecheck`
 Expected: no output.
 
-- [ ] **Step 5: Verify the suite has not moved**
+- [ ] **Step 8: Verify the suite**
 
 Run: `npm test`
-Expected: **Test Suites: 7 failed, 27 passed, 34 total. Tests: 356 passed** — the 346 baseline plus 6 from Task 2 (which extended an existing suite) and 4 from Task 3 (a new suite). This task is a behaviour-preserving refactor, so it must add nothing and break nothing.
+Expected: **Test Suites: 7 failed, 28 passed, 35 total. Tests: 363 passed** — the 346 baseline plus 6 from Task 2 (which extended an existing suite), 4 from Task 3, and 7 from this task. The consumer refactor itself must add nothing and break nothing.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add src/hooks/useDiditVerify.tsx src/hooks/useTravellerDidit.tsx
+git add src/hooks/useDiditVerify.tsx src/hooks/useTravellerDidit.tsx src/hooks/__tests__/useDiditVerify.router.test.ts
 git commit -m "refactor(didit): extract verify() into a shared useDiditVerify hook"
 ```
 
@@ -1073,16 +1208,131 @@ git commit -m "feat(documents): add useTravellerDocuments with add and set-prima
 
 ## Task 6: `DocumentCard`
 
-Presentational only — no hooks, no fetching, no test of its own. Its rendering is exercised by the manual checks in Task 10 and by `DocumentsScreen`.
+Presentational only — no hooks, no fetching. Its tests assert the badge and pill combinations, which is where a props-only component still gets logic wrong: a set-primary pill on a row that is already primary, or a missing type label.
 
 **Files:**
 - Create: `src/screens/traveller/Documents/_components/DocumentCard.tsx`
+- Test: `src/screens/traveller/Documents/__tests__/DocumentCard.router.test.tsx` (`.router.` — it renders)
 
 **Interfaces:**
 - Consumes: `TravellerDocument` from Task 5.
 - Produces: `DocumentCard` with props `{ document: TravellerDocument; isActive: boolean; onSetPrimary?: () => void; disabled?: boolean }`. Task 7 renders it.
 
-- [ ] **Step 1: Write the component**
+- [ ] **Step 1: Write the failing test**
+
+Create `src/screens/traveller/Documents/__tests__/DocumentCard.router.test.tsx`:
+
+```tsx
+import { fireEvent, render, screen } from "@testing-library/react-native";
+import React from "react";
+import { DocumentCard } from "../_components/DocumentCard";
+import type { TravellerDocument } from "../useTravellerDocuments";
+
+// `t` returns the key, so the assertions below name keys rather than English.
+jest.mock("@/providers/LocalizationProvider", () => ({
+  useLocalization: () => ({ t: (key: string) => key }),
+}));
+
+const passport: TravellerDocument = {
+  affiliationId: "aff-1",
+  travellerId: "tr-1",
+  travellerDocumentId: "doc-1",
+  travellerDocumentFullName: "JOHN SMITH",
+  identificationNumber: "P1234567",
+  identificationType: "Passport",
+  isPrimary: true,
+  isActive: true,
+  evidenceLevel: "High",
+};
+
+const idCard: TravellerDocument = {
+  ...passport,
+  affiliationId: "aff-2",
+  travellerDocumentId: "doc-2",
+  identificationNumber: "12345678901",
+  identificationType: "IdCard",
+  isPrimary: false,
+  evidenceLevel: "Low",
+};
+
+it("shows the holder name, type label and number", () => {
+  render(<DocumentCard document={passport} isActive={false} />);
+
+  expect(screen.getByText("JOHN SMITH")).toBeTruthy();
+  expect(
+    screen.getByText("MobileApp.Documents.Type.Passport · P1234567"),
+  ).toBeTruthy();
+});
+
+it("badges the primary document and its evidence level", () => {
+  render(<DocumentCard document={passport} isActive={false} />);
+
+  expect(screen.getByText("MobileApp.Documents.Primary")).toBeTruthy();
+  expect(
+    screen.getByText("MobileApp.Documents.EvidenceLevel.High"),
+  ).toBeTruthy();
+  expect(screen.queryByText("MobileApp.Documents.InUse")).toBeNull();
+});
+
+// `isActive` is the caller's answer from the JWT claim, not the DTO's field.
+it("badges the active document only when the caller says so", () => {
+  render(<DocumentCard document={idCard} isActive />);
+
+  expect(screen.getByText("MobileApp.Documents.InUse")).toBeTruthy();
+});
+
+// Offering "set as primary" on the row that already is primary would be a
+// no-op the traveller can tap.
+it("offers no set-primary action on the primary document", () => {
+  render(
+    <DocumentCard
+      document={passport}
+      isActive={false}
+      onSetPrimary={jest.fn()}
+    />,
+  );
+
+  expect(screen.queryByText("MobileApp.Documents.SetPrimary")).toBeNull();
+});
+
+it("offers set-primary on a non-primary document and reports the press", () => {
+  const onSetPrimary = jest.fn();
+  render(
+    <DocumentCard document={idCard} isActive={false} onSetPrimary={onSetPrimary} />,
+  );
+
+  fireEvent.press(screen.getByText("MobileApp.Documents.SetPrimary"));
+  expect(onSetPrimary).toHaveBeenCalledTimes(1);
+});
+
+it("swallows the press while another mutation is in flight", () => {
+  const onSetPrimary = jest.fn();
+  render(
+    <DocumentCard
+      document={idCard}
+      isActive={false}
+      onSetPrimary={onSetPrimary}
+      disabled
+    />,
+  );
+
+  fireEvent.press(screen.getByText("MobileApp.Documents.SetPrimary"));
+  expect(onSetPrimary).not.toHaveBeenCalled();
+});
+
+it("renders without a set-primary action when none is given", () => {
+  render(<DocumentCard document={idCard} isActive={false} />);
+
+  expect(screen.queryByText("MobileApp.Documents.SetPrimary")).toBeNull();
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `npx jest src/screens/traveller/Documents/__tests__/DocumentCard.router.test.tsx`
+Expected: FAIL — cannot resolve module `../_components/DocumentCard`.
+
+- [ ] **Step 3: Write the component**
 
 ```tsx
 import { Ionicons, type IoniconsTypes } from "@/components/Ionicons";
@@ -1198,20 +1448,25 @@ export function DocumentCard({
 }
 ```
 
-- [ ] **Step 2: Verify typecheck**
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `npx jest src/screens/traveller/Documents/__tests__/DocumentCard.router.test.tsx`
+Expected: PASS, 7 tests.
+
+- [ ] **Step 5: Verify typecheck**
 
 Run: `npm run typecheck`
 Expected: no output. A failure on the two template-literal `t()` calls means Task 1's `npm run init` did not land the `Type.*` or `EvidenceLevel.*` keys — re-run it.
 
-- [ ] **Step 3: Verify lint**
+- [ ] **Step 6: Verify lint**
 
 Run: `npm run lint`
 Expected: no new errors versus baseline.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/screens/traveller/Documents/_components/DocumentCard.tsx
+git add src/screens/traveller/Documents/_components/DocumentCard.tsx src/screens/traveller/Documents/__tests__/DocumentCard.router.test.tsx
 git commit -m "feat(documents): add the DocumentCard row"
 ```
 
@@ -2217,9 +2472,21 @@ Expected: no output.
 - [ ] **Step 4: Full suite**
 
 Run: `npm test`
-Expected: **Test Suites: 7 failed, 31 passed, 38 total** — the same 7 pre-existing load failures named in the Global Constraints, plus the **five** new suites passing (`post.test.ts`, `useTravellerDocuments.router.test.ts`, `openDocuments.router.test.tsx`, `useDocumentSwitcher.router.test.ts`, `ActiveDocumentPill.router.test.tsx`). Task 2 extended an existing suite rather than adding one.
+Expected: **Test Suites: 7 failed, 33 passed, 40 total** — the same 7 pre-existing load failures named in the Global Constraints, plus **seven** new suites passing:
 
-Tests: 346 baseline + 6 (Task 2) + 4 (Task 3) + 10 (Task 5) + 2 (Task 7) + 6 (Task 8) + 3 (Task 9) = **377 passed**.
+```
+src/actions/TravellerService/__tests__/post.test.ts                        (Task 3)
+src/hooks/__tests__/useDiditVerify.router.test.ts                          (Task 4)
+src/screens/traveller/Documents/__tests__/useTravellerDocuments.router.test.ts  (Task 5)
+src/screens/traveller/Documents/__tests__/DocumentCard.router.test.tsx     (Task 6)
+src/screens/traveller/Documents/__tests__/openDocuments.router.test.tsx    (Task 7)
+src/screens/traveller/Documents/__tests__/useDocumentSwitcher.router.test.ts    (Task 8)
+src/screens/traveller/Home/__tests__/ActiveDocumentPill.router.test.tsx    (Task 9)
+```
+
+Task 2 extended an existing suite rather than adding one.
+
+Tests: 346 baseline + 6 (Task 2) + 4 (Task 3) + 7 (Task 4) + 10 (Task 5) + 7 (Task 6) + 2 (Task 7) + 6 (Task 8) + 3 (Task 9) = **391 passed**.
 
 Report the actual numbers. If a *new* suite appears in the failed list, that is a real regression — fix it. Do not report success without pasting these counts.
 
