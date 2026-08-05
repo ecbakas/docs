@@ -114,8 +114,15 @@ discoverable, which is the point of committing it.
 ## Pruning behaviour
 
 - Deletes each dead key from `en.json` **and** `tr.json`.
-- Preserves surviving key order and file formatting (2-space indent, trailing newline) so the
-  diff is pure deletions and reviewable line by line.
+- Deletion is line-based rather than a JSON re-serialisation, so surviving key order, escaping
+  and the files' CRLF endings are preserved (verified across all 38 resource files in both apps:
+  every one holds exactly one entry per line and uses CRLF). The diff is deletions only, with
+  one unavoidable exception: when a file's
+  *final* entry is deleted, its predecessor must lose its trailing comma, which git reports as
+  one changed line. This happens in exactly three services — `CRMService`
+  (`UniRefund.CRMService:026001`), `RefundService` (`CrossTenantPayout.Empty`) and
+  `TravellerService` (`Permission:ProveDocument`) — so `web` yields 6 changed lines alongside
+  822 deletions. No `ssr` file is affected.
 - `tr`-only orphan keys (present in `tr.json`, absent from `en.json`) run through the same five
   layers with `tr.json` as the key source. They are unreachable through the type system but can
   resolve at runtime for the `tr` locale, so they get the same treatment rather than a blanket
@@ -149,11 +156,17 @@ strings someone wrote have never rendered.
 These keys are dead by wiring bug, not by feature removal, so deleting them would destroy
 intended translations. The fix repoints the wiring rather than relocating the data:
 
-- Add `notificationLanguageData: DefaultResource`, sourced from `core/Default`'s existing
-  `getResourceData`, in `apps/web/src/app/[lang]/(main)/layout.tsx`.
+- Add `notificationLanguageData: DefaultResource` to `NavProps` in
+  `components/sidebar-layout/data.ts`.
+- Source it in `apps/web/src/app/[lang]/(main)/layout.tsx` via `core/Default`'s
+  `getResourceDataClient`. Not `getResourceData` — that one also calls
+  `getLocalizationResources`, which fetches the relative URL `/api/?lang=…` and cannot resolve
+  server-side.
 - Thread it through `sidebar-layout.tsx` → `breadcrumb/breadcrumb.tsx`.
 - Pass it to `NotificationPopover`'s existing `langugageData` prop (note the upstream typo;
   leave it alone).
+
+Four app files in total.
 
 No changes to `packages/ui` — `NotificationProps.langugageData` is already the correct slot.
 `breadcrumb.tsx` keeps its `languageData: AbpUiNavigationResource` prop for
