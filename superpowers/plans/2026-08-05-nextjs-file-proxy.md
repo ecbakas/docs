@@ -442,9 +442,18 @@ Run from the `web-app` root:
 git grep -n "getFilePresignedUrlApi" -- apps/
 ```
 
-Expected: **zero matches under `apps/`.** The only remaining definition is in `packages/actions/unirefund/FileService/actions.ts`, and the only consumer is `apps/web/src/app/api/file/[fileId]/route.ts` — which imports it under a different call shape, so it will not appear.
+Expected: **exactly two matches, both in `apps/web/src/app/api/file/[fileId]/route.ts`** — its
+import on line 1 and its call inside the handler. That file is the intended and only consumer.
 
-If a match appears in a client component, that call site was missed. Convert it the same way as Task 3 or 4.
+(An earlier revision of this plan wrongly predicted zero matches, on the theory that the route
+handler "imports it under a different call shape." It does not — the route handler lives under
+`apps/` and imports the symbol by name. Two matches is correct; zero would actually mean the
+route handler had lost its import.)
+
+The property this grep really establishes is that **no client component resolves a presigned URL
+any more.** So the test is: every match must be inside the route handler. A match anywhere else
+under `apps/` — especially in a `"use client"` file — is a missed call site. Report it; convert it
+the same way as Task 3 or 4.
 
 Then:
 
