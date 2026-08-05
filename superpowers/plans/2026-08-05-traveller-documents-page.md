@@ -1791,6 +1791,24 @@ export function useDocumentSwitcher(): {
 
 `switchTo` resolves `true` only when both the POST and the token refresh succeeded — Task 9 uses that to decide whether to dismiss the sheet.
 
+> **Amended after the final whole-branch review (2026-08-05).** This boolean
+> contract contradicted the spec's own error table, which says the sheet **closes**
+> on the "switched but session stale" outcome — a boolean cannot distinguish that
+> from an outright failure, so the sheet wrongly stayed open. The contradiction was
+> mine, not the implementer's: the code followed this plan faithfully. The human
+> ruled the spec governs, and the shipped contract is now:
+>
+> ```ts
+> export type DocumentSwitchOutcome = "success" | "failed" | "stale-session";
+> switchTo: (travellerDocumentId: string) => Promise<DocumentSwitchOutcome>;
+> ```
+>
+> `"failed"` (POST rejected) keeps the sheet open for a retry; `"success"` and
+> `"stale-session"` both dismiss it, because in both cases the switch really
+> happened and the sheet's checkmark would otherwise point at the wrong document.
+> The code blocks below in Tasks 8 and 9 show the superseded boolean form — read
+> the repository, not this plan, for the shipped behaviour.
+
 - [ ] **Step 1: Write the failing test**
 
 Create `src/screens/traveller/Documents/__tests__/useDocumentSwitcher.router.test.ts`:
