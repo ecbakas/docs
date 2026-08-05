@@ -69,10 +69,17 @@ pages look dead, so it would delete live keys.
 
 A key is **kept** if any layer matches. Only keys matching none are dead.
 
-1. **Literal** — the key text appears anywhere in the corpus, as a plain substring. Substring
-   rather than quoted-literal matching is deliberate: it can never miss a real literal, and it
-   tolerates concatenation and reformatting. It over-keeps some genuinely dead keys, which is
-   the correct direction to err.
+1. **Literal** — the key text appears anywhere in the corpus, as a plain substring, tested in
+   both its raw form and its JSON-escaped form. Substring rather than quoted-literal matching is
+   deliberate: it tolerates concatenation and reformatting, and it over-keeps some genuinely dead
+   keys, which is the correct direction to err.
+
+   The escaped-form test is not optional. Keys arrive from `JSON.parse`, so they are unescaped,
+   while source text spells them escaped — a key `Weird"Quote` is written `t.X["Weird\"Quote"]`.
+   Testing only the raw form would report such a key dead **while it is live**, which is the one
+   failure mode that reaches production as a blank string. Every key in both apps is plain ASCII
+   today, so this was latent rather than active, but it means the tempting shorthand "substring
+   matching can never miss a real literal" is only true once both forms are checked.
 2. **Template prefix** — the key starts with a prefix extracted from `` `Prefix.${` `` in the
    corpus.
 3. **Schema-form prefix** — the key starts with a `name:` value passed to
@@ -177,10 +184,23 @@ data to satisfy an accident and leaves Novu strings in the navigation resource. 
 
 ## Verification
 
-`tsc --noEmit` is the primary gate. Because `getResourceData` types resolve to `typeof en`,
-deleting a statically-referenced key fails the build; because `t.Service[...]` types resolve
-from `i18n/*.gen.json`, deleting a local-only referenced key fails there too. The baseline was
-confirmed green (`npx tsc --noEmit` in `apps/web`, exit 0) before any change.
+`tsc --noEmit` is the primary gate, but it is a **narrower** gate than it first appears, and the
+difference is worth stating precisely.
+
+Because `getResourceData` types resolve to `typeof en`, deleting a key referenced through that
+path fails the build. For the `t.Service[...]` path the types resolve from `i18n/*.gen.json`, and
+`init.ts` builds that file by merging the ABP gateway's texts *underneath* the local JSON
+(`texts[resourceName] = { ...texts[resourceName], ...jsonContent }`). So a key the server **also**
+defines survives in the generated dictionary after its local entry is deleted, and `tsc` stays
+green. Only keys that are local-only are actually caught there.
+
+That same merge answers the backward-compatibility question: removing a local key the server also
+defines breaks neither the types nor the `t.*` runtime lookup — it only means the server's wording
+wins where a local override used to. Since none of the deleted keys is referenced anywhere at all,
+no visible override was lost.
+
+The baseline was confirmed green (`npx tsc --noEmit` in `apps/web` and `apps/ssr`, exit 0) before
+any change.
 
 Per change, **in this order** — `init` must run before `type-check`, or `tsc` still sees the
 stale generated dictionary and the deletion goes unchecked:

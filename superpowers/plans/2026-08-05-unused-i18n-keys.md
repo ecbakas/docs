@@ -650,7 +650,12 @@ The 6 added lines are unavoidable and pre-identified. Three services have their 
 
 Removing a final entry leaves a trailing comma on its predecessor, which JSON forbids, so that one line is rewritten without its comma: 1 added + 1 removed per file. Hence `828 = 822 dead-key lines + 6 comma fixes`, and the second command must list exactly those 6 files with `1` in the added column.
 
-Any *other* file showing added lines means line endings were lost — investigate before continuing.
+Any *other* file showing added lines means content was rewritten — investigate before continuing.
+
+Note what this check does **not** cover: `core.autocrlf` is on in this checkout, so git stores LF
+while the working tree holds CRLF. A pruner that wrote the wrong line ending would therefore still
+produce a clean diff here. The explicit CRLF assertion in Step 5 is the check that actually
+constrains line endings.
 
 - [ ] **Step 5: Confirm every resource file is still valid JSON**
 
