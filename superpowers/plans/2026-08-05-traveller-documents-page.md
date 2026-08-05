@@ -544,9 +544,12 @@ jest.mock("@/providers/LocalizationProvider", () => ({
   useLocalization: () => ({ t: (key: string) => key, languageCode: "tr" }),
 }));
 
-const show = jest.fn();
+// `mock`-prefixed so `babel-plugin-jest-hoist` allows the hoisted factory below
+// to close over it — the same reason `src/app/__tests__/rootGuard.router.test.tsx`
+// names its `mockSession`. An unprefixed name is a parse error, not a runtime one.
+const mockShow = jest.fn();
 jest.mock("@/providers/ToastProvider", () => ({
-  useToastRef: () => ({ current: { show } }),
+  useToastRef: () => ({ current: { show: mockShow } }),
 }));
 
 const resolve = resolveWorkflowId as jest.MockedFunction<
@@ -587,7 +590,7 @@ it("returns the session id when the verification is approved", async () => {
   startVerification.mockResolvedValue(completed("Approved", "session-7") as never);
 
   await expect(verifyHook()("ProveDocument")).resolves.toBe("session-7");
-  expect(show).not.toHaveBeenCalled();
+  expect(mockShow).not.toHaveBeenCalled();
 });
 
 it("reports an unavailable workflow and never starts a verification", async () => {
@@ -595,7 +598,7 @@ it("reports an unavailable workflow and never starts a verification", async () =
 
   await expect(verifyHook()("ProveDocument")).resolves.toBeNull();
   expect(startVerification).not.toHaveBeenCalled();
-  expect(show).toHaveBeenCalledWith(
+  expect(mockShow).toHaveBeenCalledWith(
     "error",
     "MobileApp.Auth.Verification.NotAvailable",
   );
@@ -606,7 +609,7 @@ it("is silent when the traveller cancels", async () => {
   startVerification.mockResolvedValue({ type: "cancelled" } as never);
 
   await expect(verifyHook()("ProveDocument")).resolves.toBeNull();
-  expect(show).not.toHaveBeenCalled();
+  expect(mockShow).not.toHaveBeenCalled();
 });
 
 it("reports a failed verification", async () => {
@@ -616,7 +619,7 @@ it("reports a failed verification", async () => {
   } as never);
 
   await expect(verifyHook()("ProveDocument")).resolves.toBeNull();
-  expect(show).toHaveBeenCalledWith(
+  expect(mockShow).toHaveBeenCalledWith(
     "error",
     "MobileApp.Auth.Verification.Failed",
   );
@@ -629,7 +632,7 @@ it("returns no session id for a declined decision", async () => {
   startVerification.mockResolvedValue(completed("Declined") as never);
 
   await expect(verifyHook()("ProveDocument")).resolves.toBeNull();
-  expect(show).toHaveBeenCalledWith(
+  expect(mockShow).toHaveBeenCalledWith(
     "error",
     "MobileApp.Auth.Verification.DeclinedDescription",
   );
@@ -639,7 +642,7 @@ it("returns no session id for a pending decision", async () => {
   startVerification.mockResolvedValue(completed("Pending") as never);
 
   await expect(verifyHook()("ProveDocument")).resolves.toBeNull();
-  expect(show).toHaveBeenCalledWith(
+  expect(mockShow).toHaveBeenCalledWith(
     "info",
     "MobileApp.Auth.Verification.PendingDescription",
   );
@@ -815,9 +818,11 @@ jest.mock("@/actions/TravellerService/post", () => ({
   postSetPrimaryDocumentApi: jest.fn(),
 }));
 
-const verify = jest.fn();
+// `mock`-prefixed so `babel-plugin-jest-hoist` allows the hoisted factories to
+// close over these. An unprefixed name is a parse error, not a runtime one.
+const mockVerify = jest.fn();
 jest.mock("@/hooks/useDiditVerify", () => ({
-  useDiditVerify: () => ({ verify }),
+  useDiditVerify: () => ({ verify: mockVerify }),
 }));
 
 // `t` returns the key so assertions name the message rather than its English.
@@ -825,9 +830,9 @@ jest.mock("@/providers/LocalizationProvider", () => ({
   useLocalization: () => ({ t: (key: string) => key }),
 }));
 
-const toast = { success: jest.fn(), error: jest.fn() };
+const mockToast = { success: jest.fn(), error: jest.fn() };
 jest.mock("@/providers/ToastProvider", () => ({
-  useToast: () => toast,
+  useToast: () => mockToast,
 }));
 
 jest.mock("@/utils/logger", () => ({
@@ -912,12 +917,12 @@ describe("addDocument", () => {
       await result.current.addDocument();
     });
 
-    expect(verify).not.toHaveBeenCalled();
+    expect(mockVerify).not.toHaveBeenCalled();
     expect(prove).not.toHaveBeenCalled();
   });
 
   it("does not post when the verification yields no session", async () => {
-    verify.mockResolvedValue(null);
+    mockVerify.mockResolvedValue(null);
     const { result } = renderHook(() => useTravellerDocuments());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -925,14 +930,14 @@ describe("addDocument", () => {
       await result.current.addDocument();
     });
 
-    expect(verify).toHaveBeenCalledWith("ProveDocument");
+    expect(mockVerify).toHaveBeenCalledWith("ProveDocument");
     expect(prove).not.toHaveBeenCalled();
     // `verify` owns the messaging for its own non-approved states.
-    expect(toast.error).not.toHaveBeenCalled();
+    expect(mockToast.error).not.toHaveBeenCalled();
   });
 
   it("reports a failed post and leaves the list alone", async () => {
-    verify.mockResolvedValue("session-1");
+    mockVerify.mockResolvedValue("session-1");
     prove.mockRejectedValue(new Error("boom"));
     const { result } = renderHook(() => useTravellerDocuments());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -942,12 +947,12 @@ describe("addDocument", () => {
       await result.current.addDocument();
     });
 
-    expect(toast.error).toHaveBeenCalledWith("MobileApp.Documents.AddFailed");
+    expect(mockToast.error).toHaveBeenCalledWith("MobileApp.Documents.AddFailed");
     expect(readList).not.toHaveBeenCalled();
   });
 
   it("says added when the proved document was not already on the account", async () => {
-    verify.mockResolvedValue("session-1");
+    mockVerify.mockResolvedValue("session-1");
     prove.mockResolvedValue({ travellerDocumentId: "doc-3", level: "High" });
     const { result } = renderHook(() => useTravellerDocuments());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -956,14 +961,14 @@ describe("addDocument", () => {
       await result.current.addDocument();
     });
 
-    expect(toast.success).toHaveBeenCalledWith("MobileApp.Documents.Added");
+    expect(mockToast.success).toHaveBeenCalledWith("MobileApp.Documents.Added");
   });
 
   // Re-proving a passport already on the account raises its evidence level
   // instead of adding a row. Calling that "added" sends the traveller looking
   // for a row that never appears.
   it("says updated when the proved document was already on the account", async () => {
-    verify.mockResolvedValue("session-1");
+    mockVerify.mockResolvedValue("session-1");
     prove.mockResolvedValue({ travellerDocumentId: "doc-2", level: "High" });
     const { result } = renderHook(() => useTravellerDocuments());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -972,11 +977,11 @@ describe("addDocument", () => {
       await result.current.addDocument();
     });
 
-    expect(toast.success).toHaveBeenCalledWith("MobileApp.Documents.Updated");
+    expect(mockToast.success).toHaveBeenCalledWith("MobileApp.Documents.Updated");
   });
 
   it("refetches the list after a successful prove", async () => {
-    verify.mockResolvedValue("session-1");
+    mockVerify.mockResolvedValue("session-1");
     prove.mockResolvedValue({ travellerDocumentId: "doc-3", level: "High" });
     const { result } = renderHook(() => useTravellerDocuments());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -1003,7 +1008,7 @@ describe("setPrimary", () => {
 
     expect(setPrimaryApi).toHaveBeenCalledWith("doc-2");
     expect(readList).toHaveBeenCalledTimes(1);
-    expect(toast.success).toHaveBeenCalledWith(
+    expect(mockToast.success).toHaveBeenCalledWith(
       "MobileApp.Documents.SetPrimarySuccess",
     );
   });
@@ -1026,7 +1031,7 @@ describe("setPrimary", () => {
       await result.current.setPrimary("doc-1");
     });
 
-    expect(toast.error).toHaveBeenCalledWith("MobileApp.Documents.Busy");
+    expect(mockToast.error).toHaveBeenCalledWith("MobileApp.Documents.Busy");
     expect(setPrimaryApi).toHaveBeenCalledTimes(1);
 
     await act(async () => {
@@ -1047,7 +1052,7 @@ describe("setPrimary", () => {
       await result.current.setPrimary("doc-2");
     });
 
-    expect(toast.error).toHaveBeenCalledWith(
+    expect(mockToast.error).toHaveBeenCalledWith(
       "MobileApp.Documents.SetPrimaryFailed",
     );
     expect(readList).toHaveBeenCalledTimes(1);
@@ -1804,18 +1809,19 @@ jest.mock("@/actions/TravellerService/post", () => ({
   postSetActiveDocumentApi: jest.fn(),
 }));
 
-const fetchNewAccessToken = jest.fn();
+// `mock`-prefixed for `babel-plugin-jest-hoist`; see Task 5's test.
+const mockFetchNewAccessToken = jest.fn();
 jest.mock("@/providers/SessionProvider", () => ({
-  useSession: () => ({ fetchNewAccessToken }),
+  useSession: () => ({ fetchNewAccessToken: mockFetchNewAccessToken }),
 }));
 
 jest.mock("@/providers/LocalizationProvider", () => ({
   useLocalization: () => ({ t: (key: string) => key }),
 }));
 
-const toast = { success: jest.fn(), error: jest.fn() };
+const mockToast = { success: jest.fn(), error: jest.fn() };
 jest.mock("@/providers/ToastProvider", () => ({
-  useToast: () => toast,
+  useToast: () => mockToast,
 }));
 
 jest.mock("@/utils/logger", () => ({
@@ -1860,7 +1866,7 @@ function signIn(travellerDocumentId = "doc-1") {
 beforeEach(() => {
   jest.clearAllMocks();
   readList.mockResolvedValue(documents);
-  fetchNewAccessToken.mockResolvedValue(true);
+  mockFetchNewAccessToken.mockResolvedValue(true);
   signIn();
 });
 
@@ -1890,7 +1896,7 @@ describe("switchTo", () => {
       calls.push("setActive");
       return {};
     });
-    fetchNewAccessToken.mockImplementation(async () => {
+    mockFetchNewAccessToken.mockImplementation(async () => {
       calls.push("refresh");
       return true;
     });
@@ -1908,7 +1914,7 @@ describe("switchTo", () => {
     // order is not cosmetic.
     expect(calls).toEqual(["setActive", "refresh"]);
     expect(outcome).toBe(true);
-    expect(toast.success).toHaveBeenCalled();
+    expect(mockToast.success).toHaveBeenCalled();
   });
 
   it("resets the selection and does not refresh when the post fails", async () => {
@@ -1924,10 +1930,10 @@ describe("switchTo", () => {
       outcome = await result.current.switchTo("doc-2");
     });
 
-    expect(fetchNewAccessToken).not.toHaveBeenCalled();
+    expect(mockFetchNewAccessToken).not.toHaveBeenCalled();
     expect(result.current.selectedId).toBe("doc-1");
     expect(outcome).toBe(false);
-    expect(toast.error).toHaveBeenCalledWith(
+    expect(mockToast.error).toHaveBeenCalledWith(
       "MobileApp.Documents.SwitchFailed",
     );
   });
@@ -1936,7 +1942,7 @@ describe("switchTo", () => {
   // "switch failed" would have the traveller retry something already done.
   it("reports a stale session, not a failure, when the refresh fails", async () => {
     setActive.mockResolvedValue({});
-    fetchNewAccessToken.mockResolvedValue(false);
+    mockFetchNewAccessToken.mockResolvedValue(false);
 
     const { result } = renderHook(() => useDocumentSwitcher());
     await waitFor(() => expect(result.current.documents).toHaveLength(2));
@@ -1946,10 +1952,10 @@ describe("switchTo", () => {
       outcome = await result.current.switchTo("doc-2");
     });
 
-    expect(toast.error).toHaveBeenCalledWith(
+    expect(mockToast.error).toHaveBeenCalledWith(
       "MobileApp.Documents.SwitchNeedsRelogin",
     );
-    expect(toast.error).not.toHaveBeenCalledWith(
+    expect(mockToast.error).not.toHaveBeenCalledWith(
       "MobileApp.Documents.SwitchFailed",
     );
     expect(outcome).toBe(false);
@@ -2126,7 +2132,8 @@ import { render, screen } from "@testing-library/react-native";
 import React from "react";
 import { ActiveDocumentPill } from "../_components/ActiveDocumentPill";
 
-const switcher = {
+// `mock`-prefixed for `babel-plugin-jest-hoist`; see Task 5's test.
+const mockSwitcher = {
   documents: [] as { travellerDocumentId: string; identificationNumber: string }[],
   activeDocumentId: "",
   selectedId: "",
@@ -2136,7 +2143,7 @@ const switcher = {
 };
 
 jest.mock("@/screens/traveller/Documents/useDocumentSwitcher", () => ({
-  useDocumentSwitcher: () => switcher,
+  useDocumentSwitcher: () => mockSwitcher,
 }));
 
 // The sheet renders a portal that needs a provider; the pill's own behaviour is
@@ -2159,8 +2166,8 @@ const idCard = {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  switcher.documents = [];
-  switcher.activeDocumentId = "";
+  mockSwitcher.documents = [];
+  mockSwitcher.activeDocumentId = "";
 });
 
 it("renders nothing without an active document", () => {
@@ -2173,8 +2180,8 @@ it("renders nothing without an active document", () => {
 // One document means nothing to switch between; a pressable pill would promise
 // a choice that does not exist.
 it("renders a plain label for a single document", () => {
-  switcher.documents = [passport];
-  switcher.activeDocumentId = "doc-1";
+  mockSwitcher.documents = [passport];
+  mockSwitcher.activeDocumentId = "doc-1";
 
   render(<ActiveDocumentPill />);
 
@@ -2184,8 +2191,8 @@ it("renders a plain label for a single document", () => {
 });
 
 it("renders a pressable pill for two or more documents", () => {
-  switcher.documents = [passport, idCard];
-  switcher.activeDocumentId = "doc-1";
+  mockSwitcher.documents = [passport, idCard];
+  mockSwitcher.activeDocumentId = "doc-1";
 
   render(<ActiveDocumentPill />);
 
