@@ -160,8 +160,15 @@ detector's layer 3 can never report.
 ### B2. Fill `NEEDS_KEY` with English, queue Turkish
 
 `en` comes from the schema property's `title` where the generated schema provides one, otherwise
-`lodash.startCase(property)` — deliberately the *same* string the current fallback already renders,
-so the English UI does not change and the diff cannot introduce a visual regression. `tr` receives
+`lodash.startCase(property)`.
+
+**Correction, found during implementation:** the claim that this leaves the English UI unchanged is
+true only for plain field labels. Enum members take a different path — `uiSchemaFromSchema` builds
+`ui:enumNames` as `resources[...] || key`, falling back to the **raw enum key**, never to
+`startCase` (`schema-form/utils/schemas.ts:246-248`). So an enum dropdown was rendering `DRAFT` and
+`WAITINGAPPROVAL` literally. Filling those keys is a real, positive English change, affecting roughly
+two thirds of the 174. The work is right; the "no English UI changes" rationale was wrong for enum
+keys, and the reason five all-caps members needed hand-correction is that this path never split them. `tr` receives
 the same English string, and every such key is appended to `scripts/i18n-untranslated.json`:
 
 ```json
