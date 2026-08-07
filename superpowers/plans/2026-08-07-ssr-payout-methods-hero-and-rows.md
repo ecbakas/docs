@@ -640,7 +640,7 @@ export function TokenHeroActions({
           onClick={onSetDefault}
           disabled={disabled}
           title={t.SSRService["Account.Cards.SetDefault"]}
-          className="size-5 rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-amber-300"
+          className="size-5 rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-amber-300 @xs:size-6"
           data-testid={`token-hero-set-default-${token.id}`}
         >
           <Star className="size-3" />
@@ -659,7 +659,7 @@ export function TokenHeroActions({
         size="icon-xs"
         onClick={onDelete}
         disabled={disabled}
-        className="size-5 rounded-full bg-white/10 text-white hover:bg-red-500/30 hover:text-white"
+        className="size-5 rounded-full bg-white/10 text-white hover:bg-red-500/30 hover:text-white @xs:size-6"
         data-testid={`token-hero-delete-${token.id}`}
       >
         <Trash2 className="size-3" />
