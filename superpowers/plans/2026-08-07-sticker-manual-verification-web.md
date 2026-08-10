@@ -1951,7 +1951,12 @@ function drawToCanvas(bitmap: ImageBitmap, maxEdge: number): HTMLCanvasElement {
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
   const ctx = canvas.getContext("2d");
-  if (ctx) ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  // Corrected 2026-08-10: this was `if (ctx) ctx.drawImage(...)`, which returned
+  // a blank canvas on a null context. A blank image compresses trivially, so it
+  // passed the first budget check and reached the officer's queue as `ok: true`
+  // - an empty photograph standing in for the evidence a refund rests on.
+  if (!ctx) throw new Error("2d context unavailable");
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   return canvas;
 }
 
@@ -1996,14 +2001,25 @@ export async function prepareStickerPicture(
     { edge: FALLBACK_EDGE, quality: 0.6 },
   ];
 
+  /*
+   * Corrected 2026-08-10: the loop was outside any try/catch, so a FileReader
+   * error inside toBase64 rejected the promise instead of resolving to
+   * PrepareFailure, and leaked the bitmap on the way out. Both failure modes
+   * must now degrade identically - the caller only handles the union.
+   */
   let last: { blob: Blob; base64: string } | null = null;
-  for (const attempt of attempts) {
-    const canvas = drawToCanvas(bitmap, attempt.edge);
-    const blob = await toBlob(canvas, attempt.quality);
-    if (!blob) continue;
-    const base64 = await toBase64(blob);
-    last = { blob, base64 };
-    if (base64.length <= MAX_BASE64_CHARS) break;
+  try {
+    for (const attempt of attempts) {
+      const canvas = drawToCanvas(bitmap, attempt.edge);
+      const blob = await toBlob(canvas, attempt.quality);
+      if (!blob) continue;
+      const base64 = await toBase64(blob);
+      last = { blob, base64 };
+      if (base64.length <= MAX_BASE64_CHARS) break;
+    }
+  } catch {
+    bitmap.close();
+    return { ok: false, reason: "unreadable" };
   }
 
   if (!last) {
