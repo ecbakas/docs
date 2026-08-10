@@ -210,10 +210,19 @@ Expected: PASS, no output past the `> tsc --noEmit` banner.
 
 If a client method name is not found, read the real name from `packages/saas/TagService/sdk.gen.ts` under `class StickerManualVerificationService` and correct it — do not cast around it.
 
-- [ ] **Step 4: Lint**
+- [ ] **Step 4: Lint — know what it does and does not cover**
 
 Run: `cd c:\unirefund\web-app\apps\web && pnpm lint`
 Expected: PASS.
+
+Be honest about the coverage in your report. That script is a bare `eslint`
+with no path argument, which under ESLint 9 flat config lints the current
+working directory only — it never reaches `../../packages/actions/`. Nothing in
+this task's diff is linted by it, because `packages/actions` has no `lint`
+script and `turbo lint` therefore skips the package entirely. `tsc --noEmit`
+from `apps/web` *does* genuinely cover these files, since the app imports them
+and they are in its module graph. Type-check is the real gate here; lint is
+not. Do not claim lint passed on files it never read.
 
 - [ ] **Step 5: Commit**
 
