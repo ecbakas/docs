@@ -335,10 +335,11 @@ Expected: no errors. If it complains the `Common.Loading` key is unknown, `npm r
 git add src/components/skeletonClassName.ts src/components/Skeleton.tsx \
   src/components/__tests__/skeletonClassName.test.ts \
   src/components/__tests__/Skeleton.router.test.tsx \
-  src/localization/resources/en-US.json src/localization/resources/tr-TR.json \
-  src/data/language-data/en-US.gen.json src/data/language-data/tr-TR.gen.json
+  src/localization/resources/en-US.json src/localization/resources/tr-TR.json
 git commit -m "feat(skeleton): add shared static Skeleton primitive"
 ```
+
+The regenerated `src/data/language-data/*.gen.json` files are deliberately **not** committed: `.gitignore:27` covers `src/data/*/*.gen.json` and they have never been tracked. They must exist on disk for tsc and the tests to pass, which is why Step 6 is not optional — but they stay untracked, so anyone else on this branch runs `npm run init` themselves.
 
 ---
 
@@ -850,6 +851,7 @@ Create `src/screens/shared/Notifications/_components/NotificationsSkeleton.tsx`,
 
 ```tsx
 import { Skeleton, SkeletonRoot } from "@/components/Skeleton";
+import { useLocalization } from "@/providers/LocalizationProvider";
 import React from "react";
 import { View } from "react-native";
 
@@ -859,8 +861,12 @@ import { View } from "react-native";
  * as a line of centred text under a spinner.
  */
 export function NotificationsSkeleton() {
+  const { t } = useLocalization();
   return (
-    <SkeletonRoot label="MobileApp.Notifications.Loading" className="pb-6">
+    <SkeletonRoot
+      label={t("MobileApp.Notifications.Loading")}
+      className="pb-6"
+    >
       {/* The real list heads itself with a count summary over a rule. */}
       <View className="mb-4 pb-3 border-b border-border">
         <Skeleton className="h-3.5 w-36" />
@@ -886,7 +892,7 @@ export function NotificationsSkeleton() {
 }
 ```
 
-Passing `label="MobileApp.Notifications.Loading"` keeps that existing key live, which is why Task 1's third test covers the label override.
+Note that the key is resolved through `t()` *here*, not inside `SkeletonRoot`. `SkeletonRoot` treats `label` as an already-translated string and passes it straight to `accessibilityLabel`, matching how the codebase hands strings to `QrScanner` and friends. Passing the raw key would leak `MobileApp.Notifications.Loading` to a real screen reader — it only looks fine in tests, where `t` is mocked as the identity.
 
 - [ ] **Step 2: Swap the loading branch**
 
