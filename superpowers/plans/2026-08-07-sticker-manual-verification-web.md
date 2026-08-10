@@ -19,6 +19,7 @@
 - **`data-testid` is mandatory** on `Label, Link, Checkbox, Switch, Button, Input, SelectTrigger, PopoverTrigger, DialogTrigger, DrawerTrigger, TabsTrigger, AccordionTrigger, CollapsibleTrigger, AlertDialog` and the other triggers listed in [`.claude/rules/data-testid.md`](../../../web-app/.claude/rules/data-testid.md). Kebab-case, prefixed with the page or feature name. ESLint enforces it.
 - **No `useEffect`** for derived state or event responses. Use `useMemo`, event handlers, or the render-time "adjust state when a prop changes" pattern `TagForm` already uses. See [`.claude/rules/avoid-use-effect.md`](../../../web-app/.claude/rules/avoid-use-effect.md).
 - **UI only from `@repo/ayasofyazilim-ui/components/*` and `/custom/*`.** Never install or import another component library. See [`.claude/rules/ui-components.md`](../../../web-app/.claude/rules/ui-components.md).
+- **Keep comments sparse.** Added 2026-08-10 at the author's instruction. Comment only what the code cannot say for itself — a rule that would otherwise be silently broken, an ordering that matters, a guard that exists because of a real bug. Do **not** mirror the long docblocks already in `scan-sticker/client.tsx`, `tag-form/invoice.ts` or `utils-file.ts`; that density is not the standard. Never write a docblock that restates the function name or repeats the permission the call already names. The code blocks in the tasks below still carry their original comments in places — **trim them as you transcribe** rather than copying them verbatim.
 - **`apps/web` and `apps/ssr` have no unit-test runner.** Both have Playwright, but it runs against a live environment with an auth setup step, and this feature responds to nothing until DbMigrator has run and permissions are granted. Do **not** install Jest or Vitest in either app. Their per-task gate is `pnpm type-check` + `pnpm lint` + the stated manual check. The `ayasofyazilim-ui` submodule **does** have Jest, and Tasks 9 and 10 use it for real.
 - **`next build` must not run while a dev server is up** — both share `.next`, and the build strips dev HMR chunks, leaving the browser in a `ChunkLoadError` reload loop.
 - **`packages/ayasofyazilim-ui` is a git submodule** with its own repository. Tasks 9 and 10 commit there and need a separate PR plus a pointer bump in this repo.
@@ -200,14 +201,18 @@ Add to the existing `import type { ... } from "@repo/saas/TagService"` block at 
 
 - [ ] **Step 3: Verify it type-checks**
 
-Run: `cd c:\unirefund\web-app\packages\actions && pnpm type-check`
-Expected: PASS, no output.
+`packages/actions` has **no `type-check` or `lint` script of its own** — its only
+script is a placeholder `test`. It is type-checked through its consumers, so the
+gate is:
+
+Run: `cd c:\unirefund\web-app\apps\web && pnpm type-check`
+Expected: PASS, no output past the `> tsc --noEmit` banner.
 
 If a client method name is not found, read the real name from `packages/saas/TagService/sdk.gen.ts` under `class StickerManualVerificationService` and correct it — do not cast around it.
 
 - [ ] **Step 4: Lint**
 
-Run: `cd c:\unirefund\web-app\packages\actions && pnpm lint`
+Run: `cd c:\unirefund\web-app\apps\web && pnpm lint`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -2910,7 +2915,7 @@ git commit -m "feat(ssr): prefill the sticker line number from the photo's QR"
 Run the full gate across everything the plan touched:
 
 ```bash
-cd c:/unirefund/web-app/packages/actions && pnpm type-check && pnpm lint
+# packages/actions has no scripts of its own - the apps below type-check it.
 cd c:/unirefund/web-app/packages/ayasofyazilim-ui && pnpm test && pnpm type-check && pnpm lint
 cd c:/unirefund/web-app/apps/web && pnpm run init && pnpm type-check && pnpm lint
 cd c:/unirefund/web-app/apps/ssr && pnpm run init && pnpm type-check && pnpm lint
