@@ -1704,6 +1704,14 @@ export function PendingVerifications({ items }: { items: Item[] }) {
                   : t.SSRService["Verification.Status.Created"]}
               </span>
             </div>
+            {/* Corrected 2026-08-10: this block originally omitted the date,
+                contradicting the design's own "line number, a status chip, the
+                date, and for Invalid the invalidReason" — and orphaning both
+                label keys. Format for the locale; creationTime is optional. */}
+            <span className="text-muted-foreground text-xs">
+              {t.SSRService["Verification.UploadedAt"]}:{" "}
+              {formatUploadedAt(item.creationTime, lang)}
+            </span>
             {item.invalidReason ? (
               <p className="text-muted-foreground text-sm">
                 <span className="font-medium">
