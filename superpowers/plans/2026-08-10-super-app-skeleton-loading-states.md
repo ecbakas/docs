@@ -490,24 +490,9 @@ export function TagCardSkeleton({
 
 Two notes for the reviewer. The rail and the divider take `rounded-none` because `skeletonClassName` applies `rounded` by default and a 1.5-wide rail or a 1pt rule must stay square. Both take `tint="surface"` rather than the default, because they are structure rather than content.
 
-- [ ] **Step 3: Replace `TagListSkeleton`**
+- [ ] **Step 3: Leave `TagListSkeleton` alone**
 
-The list is a run of cards, each already announcing itself through its own `SkeletonRoot`, so this wrapper adds no second root:
-
-```tsx
-/** A short run of skeleton cards for the list view. */
-export function TagListSkeleton({ count = 5 }: { count?: number }) {
-  return (
-    <View>
-      {Array.from({ length: count }, (_, i) => (
-        <TagCardSkeleton key={i} variant="row" />
-      ))}
-    </View>
-  );
-}
-```
-
-This is unchanged from the original — included in full because the surrounding function was rewritten and a reader should see that it deliberately stays as it was.
+Make no edit here. `TagListSkeleton` (lines 68-77) is a run of `TagCardSkeleton`s, each of which now announces itself through its own `SkeletonRoot`, so the list needs no root of its own and no other change. It is called out explicitly only so its absence from the diff reads as deliberate rather than forgotten.
 
 - [ ] **Step 4: Typecheck and lint**
 
@@ -674,7 +659,11 @@ The existing `renderScreen` helper already supplies the `SafeAreaProvider` that 
 Run: `npx jest src/screens/traveller/Cards/__tests__/CardsScreen.router.test.tsx`
 Expected: PASS, 4 tests.
 
-To prove the test has teeth, temporarily change the loading branch to `return <CardsSkeleton />` above the `ModalTemplate` and re-run: the two chrome assertions must fail. Revert immediately.
+Do not modify the source to prove the test can fail — a deliberately broken
+branch is too easy to leave behind. The assertions are meaningful by
+construction: `MobileApp.Cards.Title` and `MobileApp.Cards.Description` are
+rendered by `ModalTemplate` alone, never by `CardsSkeleton`, so they can only
+resolve if the template is still in the tree.
 
 - [ ] **Step 6: Typecheck, lint, commit**
 
