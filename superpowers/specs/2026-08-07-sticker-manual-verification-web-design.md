@@ -123,16 +123,41 @@ picture could not be loaded rather than implying the traveller failed to send
 one — both pictures are mandatory on upload, so a blank pane is always our
 problem, never theirs.
 
-**Amended 2026-08-10.** This originally rendered the DTO's presigned
-`frontPictureUrl` / `backPictureUrl` directly. PR #267 has since established the
+**Amended 2026-08-10 (first amendment).** This originally rendered the DTO's
+presigned `frontPictureUrl` / `backPictureUrl` directly. PR #267 established the
 opposite rule in `apps/web/src/utils/utils-file.ts` — the browser is never handed
-a storage URL; everything goes through the `/api/file/{id}` proxy, which
-re-signs server-side, drops upstream `x-amz-*` headers, forces `private,
-no-store` plus `nosniff`, and gates on `auth()`. For photographs of a traveller's
-tax-free paperwork that posture is worth having, so the panes use
-`fileViewUrl(frontPictureFileId)` and the presigned fields go unused. The
-unavailable state consequently keys off a failed proxy fetch rather than a null
-URL.
+a storage URL; everything goes through the `/api/file/{id}` proxy. So the panes
+used `fileViewUrl(frontPictureFileId)` and the presigned fields went unused.
+
+**Amended again 2026-08-10, at the author's instruction — this supersedes the
+above.** The photographs are now fetched as **base64 in the detail response**
+(`includePictureData: true`) and rendered as `data:` URIs. `fileViewUrl` is not
+used here at all, and neither the presigned URLs nor the file ids are used for
+display.
+
+The reversal is deliberate and its cost was accepted explicitly: two photographs
+at roughly 1.9 MB decoded each arrive as ~5 MB of base64 inside the detail JSON,
+uncached and non-streaming, on every load — including the reload that follows
+*Mark invalid*. Nothing was added to mitigate that, because mitigating it was not
+what was asked. The security posture is unchanged either way: the browser never
+sees a storage URL on either design.
+
+Two consequences to hold onto. The unavailable state keys off an **absent or
+empty base64 string**, not a failed fetch. And a `data:` URI cannot be opened as
+a top-level navigation in Chrome, so full-size viewing is a **Dialog lightbox**
+over the same string rather than a new tab — which matters because the officer
+transcribes invoice line items off that photograph, and a form rendered into a
+third of the screen is not legible enough to read amounts from.
+
+**The two officer screens are now one.** The review screen and the create-tag
+screen were merged into a single two-column screen at `[id]`: details, both
+photographs and *Mark invalid* on the left, the create-tag form on the right. The
+right column renders `ManualVerification.CreateTag.NotPending` instead of the
+form for an `Invalid` or `Completed` pair. `[id]/create-tag` survives as a
+**redirect** to `[id]` — the path keeps working and there is exactly one
+implementation of the form. Merging also fixed a real defect the whole-branch
+review found: the officer had been issuing a tag without the sticker line number
+or the photograph anywhere on screen.
 
 Two header actions, both offered only while `status === "Created"`, since the
 backend refuses either against a pair that has already been reviewed:
