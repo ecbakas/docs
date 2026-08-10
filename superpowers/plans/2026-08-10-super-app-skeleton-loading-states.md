@@ -713,10 +713,11 @@ export function DocumentsSkeleton() {
             </View>
           </View>
 
-          {/* DocumentCard badges its status and its evidence level, so the row
-              reserves the space both occupy. */}
+          {/* Three badges, not two: `isPrimary` and `isActive` are independent,
+              so Primary and In Use can both show alongside the evidence level. */}
           <View className="flex-row flex-wrap items-center gap-2">
             <Skeleton className="h-6 w-20 rounded-full" />
+            <Skeleton className="h-6 w-16 rounded-full" />
             <Skeleton className="h-6 w-24 rounded-full" />
           </View>
         </View>
@@ -774,9 +775,12 @@ jest.mock("expo-router", () => ({
 }));
 
 // The hook is colocated with the screen, not under `@/hooks`.
-const useTravellerDocuments = jest.fn();
+// The `mock` prefix is required: `jest.mock` factories are hoisted above the
+// file's variable declarations, and babel-plugin-jest-hoist only permits a
+// factory to close over identifiers whose names begin with `mock`.
+const mockUseTravellerDocuments = jest.fn();
 jest.mock("../useTravellerDocuments", () => ({
-  useTravellerDocuments: () => useTravellerDocuments(),
+  useTravellerDocuments: () => mockUseTravellerDocuments(),
 }));
 
 // ModalTemplate reads insets via useSafeAreaInsets, which throws without a
@@ -798,7 +802,7 @@ function renderScreen() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  useTravellerDocuments.mockReturnValue({
+  mockUseTravellerDocuments.mockReturnValue({
     documents: [],
     loading: true,
     error: null,
@@ -946,9 +950,12 @@ jest.mock("expo-router", () => ({
   useFocusEffect: () => undefined,
 }));
 
-const useNotifications = jest.fn();
+// The `mock` prefix is required — jest.mock factories are hoisted above the
+// variable declarations, and babel-plugin-jest-hoist only lets a factory close
+// over identifiers named `mock*`.
+const mockUseNotifications = jest.fn();
 jest.mock("@novu/react-native", () => ({
-  useNotifications: () => useNotifications(),
+  useNotifications: () => mockUseNotifications(),
 }));
 
 function renderScreen() {
@@ -968,7 +975,7 @@ function renderScreen() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  useNotifications.mockReturnValue({
+  mockUseNotifications.mockReturnValue({
     notifications: [],
     isLoading: true,
     fetchMore: jest.fn(),
@@ -1287,9 +1294,10 @@ jest.mock("expo-router", () => ({
   useFocusEffect: () => undefined,
 }));
 
-const useTagDetail = jest.fn();
+// `mock` prefix required — see the hoisting note in Task 5's test.
+const mockUseTagDetail = jest.fn();
 jest.mock("../useTagDetail", () => ({
-  useTagDetail: () => useTagDetail(),
+  useTagDetail: () => mockUseTagDetail(),
 }));
 
 // The screen takes `{ tagId, tagNumber }` as props (TagDetailScreen.tsx:120-126),
@@ -1311,7 +1319,7 @@ function renderScreen() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  useTagDetail.mockReturnValue({
+  mockUseTagDetail.mockReturnValue({
     tagDetailData: undefined,
     status: "loading",
     reload: jest.fn(),
