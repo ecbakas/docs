@@ -2632,7 +2632,9 @@ Create `packages/ayasofyazilim-ui/src/custom/barcode-image-decoder/lib.ts`:
  * does not - but a QR shot from a distance needs the larger pass to keep enough
  * pixels per module. So the decoder sweeps down and stops at the first hit.
  */
-const DECODE_EDGES = [1600, 1024, 640];
+// The tuple type is load-bearing: `noUncheckedIndexedAccess` is on, so
+// DECODE_EDGES[0] is `number | undefined` against a plain number[].
+const DECODE_EDGES: [number, number, number] = [1600, 1024, 640];
 
 /**
  * The sizes to try for an image of this size, in order. Never upscales: an
@@ -2641,8 +2643,13 @@ const DECODE_EDGES = [1600, 1024, 640];
  */
 export function buildDecodeScales(width: number, height: number): number[] {
   const longest = Math.max(width, height);
-  const scales = DECODE_EDGES.filter((edge) => edge < longest);
-  return [Math.min(longest, DECODE_EDGES[0]), ...scales];
+  // Corrected 2026-08-10. This filtered `edge < longest` against the RAW
+  // longest edge, which emitted 1600 twice for any image above 1600px -
+  // failing two of this task's own four test cases. Filter against the capped
+  // first pass instead. The red-green order is what caught it.
+  const first = Math.min(longest, DECODE_EDGES[0]);
+  const rest = DECODE_EDGES.filter((edge) => edge < first);
+  return [first, ...rest];
 }
 ```
 
