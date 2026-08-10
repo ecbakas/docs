@@ -636,8 +636,28 @@ git commit -m "feat(web): sticker manual-verification worklist"
 - Modify: `apps/web/src/language-data/unirefund/TagService/resources/en.json` and `tr.json`
 
 **Interfaces:**
-- Consumes: `getStickerManualVerificationByIdApi`, `postStickerManualVerificationByIdMarkInvalidApi` (Task 1); the `ManualVerification.` key prefix (Task 2).
+- Consumes: `getStickerManualVerificationByIdApi`, `postStickerManualVerificationByIdMarkInvalidApi` (Task 1); the `ManualVerification.` key prefix (Task 2); `fileViewUrl` from `@/src/utils/utils-file`.
 - Produces: the route `operations/manual-verifications/[id]`, which Task 2's `RowLink` targets and Task 5's create-tag route nests under.
+
+**Amended 2026-08-10.** The original plan rendered the DTO's presigned
+`frontPictureUrl` / `backPictureUrl` straight into `<img src>`. PR #267 landed
+[`apps/web/src/utils/utils-file.ts`](../../../web-app/apps/web/src/utils/utils-file.ts)
+after this plan was written, establishing the opposite policy: *"the proxy exists
+so the browser never sees a presigned storage URL… every caller should address
+files through here."* The proxy re-signs server-side, drops upstream `x-amz-*`
+headers, forces `Cache-Control: private, no-store` and `X-Content-Type-Options:
+nosniff`, and gates on `auth()`. These are photographs of a traveller's
+tax-free paperwork, so that posture is worth having.
+
+The detail DTO carries `frontPictureFileId` and `backPictureFileId` alongside the
+URLs, so this task uses **`fileViewUrl(fileId)`** and ignores the presigned
+fields entirely. Two consequences follow:
+
+- The unavailable state no longer keys off a null URL. It keys off a **missing
+  file id** or a **failed proxy fetch** (the route answers 401/404/502 as plain
+  text), so the pane needs an `onError` handler and therefore local state.
+- `fileViewUrl` is already used this way by
+  `file/verification/[fileId]/verify/page.tsx` — match that import path exactly.
 
 - [ ] **Step 1: Add the review-screen i18n keys**
 
@@ -690,6 +710,7 @@ Create `.../[id]/_components/pictures.tsx`:
 ```tsx
 "use client";
 import { useTranslations } from "@/src/providers/i18n";
+import { fileViewUrl } from "@/src/utils/utils-file";
 import { buttonVariants } from "@repo/ayasofyazilim-ui/components/button";
 import {
   Empty,
@@ -699,34 +720,47 @@ import {
   EmptyTitle,
 } from "@repo/ayasofyazilim-ui/components/empty";
 import { ImageOff } from "lucide-react";
+import { useState } from "react";
 
 /**
- * One picture pane. Each is rendered independently because either presigned URL
- * can be null while the rest of the response is fine - a storage failure
- * degrades the field rather than failing the request, so a null URL means "we
- * could not load it", never "the traveller did not send one".
+ * One picture pane, addressed through the `/api/file` proxy rather than the
+ * DTO's presigned URL - see `@/src/utils/utils-file`: the browser is never
+ * given a storage URL, and the proxy re-signs, strips upstream headers, and
+ * forces `private, no-store`.
+ *
+ * Each pane renders independently and owns its own failure. The proxy answers
+ * 401/404/502 with a plain-text body, which reaches an `<img>` as a load error
+ * and nothing more, so `onError` is the only signal that a picture did not
+ * arrive. A failure here means "we could not load it", never "the traveller did
+ * not send one" - both ids are always present on a real pair.
  */
 function PicturePane({
   title,
-  url,
+  fileId,
   testId,
 }: {
   title: string;
-  url?: string | null;
+  fileId?: string | null;
   testId: string;
 }) {
   const { t } = useTranslations();
+  const [hasFailed, setHasFailed] = useState(false);
+  const url = fileId ? fileViewUrl(fileId) : null;
+
   return (
     <div className="flex flex-col gap-2">
       <h2 className="text-muted-foreground text-xs font-medium">{title}</h2>
-      {url ? (
+      {url && !hasFailed ? (
         <div className="flex flex-col gap-2">
-          {/* Presigned URLs point at object storage on a host next/image is not
-              configured for, so a plain img is deliberate here. */}
+          {/* A proxied stream of arbitrary size behind an auth gate, not a
+              static asset next/image can optimise. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             alt={title}
             className="bg-muted max-h-[60vh] w-full rounded-md object-contain"
+            onError={() => {
+              setHasFailed(true);
+            }}
             src={url}
           />
           <a
@@ -757,24 +791,24 @@ function PicturePane({
 }
 
 export function VerificationPictures({
-  frontPictureUrl,
-  backPictureUrl,
+  frontPictureFileId,
+  backPictureFileId,
 }: {
-  frontPictureUrl?: string | null;
-  backPictureUrl?: string | null;
+  frontPictureFileId?: string | null;
+  backPictureFileId?: string | null;
 }) {
   const { t } = useTranslations();
   return (
     <div className="grid gap-6 md:grid-cols-2">
       <PicturePane
+        fileId={frontPictureFileId}
         testId="manual-verification-front"
         title={t.TagService["ManualVerification.Detail.StickerPicture"]}
-        url={frontPictureUrl}
       />
       <PicturePane
+        fileId={backPictureFileId}
         testId="manual-verification-back"
         title={t.TagService["ManualVerification.Detail.FormPicture"]}
-        url={backPictureUrl}
       />
     </div>
   );
@@ -1049,9 +1083,11 @@ export default async function Page({
         </div>
       ) : null}
 
+      {/* The file ids, not the DTO's presigned URLs - see the amendment note
+          at the top of this task. */}
       <VerificationPictures
-        backPictureUrl={pair.backPictureUrl}
-        frontPictureUrl={pair.frontPictureUrl}
+        backPictureFileId={pair.backPictureFileId}
+        frontPictureFileId={pair.frontPictureFileId}
       />
     </div>
   );
@@ -1069,11 +1105,18 @@ correct the import.
 
 - [ ] **Step 6: Verify in the browser**
 
-Open a `Created` row from the worklist. Confirm both pictures render; both header
-buttons appear for a user holding the grants and disappear for one who does not;
-rejecting with an empty reason is impossible (the confirm button stays disabled);
-rejecting with a reason toasts success, and reloading the row shows status
-`Rejected` with the reason and no action buttons.
+Open a `Created` row from the worklist. Confirm:
+
+- both pictures render, and their `src` in the Network tab is
+  `/api/file/{id}` — **not** an `s3.wasabisys.com` URL. A storage host there
+  means the presigned field was used and the amendment was missed;
+- "Open full size" opens the same proxied URL in a new tab;
+- both header buttons appear for a user holding the grants and disappear for one
+  who does not;
+- rejecting with an empty reason is impossible (the confirm button stays
+  disabled);
+- rejecting with a reason toasts success, and reloading the row shows status
+  `Rejected` with the reason and no action buttons.
 
 - [ ] **Step 7: Commit**
 

@@ -118,10 +118,21 @@ Two panes side by side: the pictures, and a details column carrying the
 traveller name and document number, the line number, `creationTime`,
 `reviewedAt`, the status badge, and `invalidReason` when there is one.
 
-Each picture pane renders its own unavailable state, independently, because
-either URL can be null while the rest of the response is fine. A null URL is a
-storage problem, not a missing picture, so the pane says the picture could not be
-loaded rather than implying the traveller failed to send one.
+Each picture pane renders its own unavailable state, independently, and says the
+picture could not be loaded rather than implying the traveller failed to send
+one — both pictures are mandatory on upload, so a blank pane is always our
+problem, never theirs.
+
+**Amended 2026-08-10.** This originally rendered the DTO's presigned
+`frontPictureUrl` / `backPictureUrl` directly. PR #267 has since established the
+opposite rule in `apps/web/src/utils/utils-file.ts` — the browser is never handed
+a storage URL; everything goes through the `/api/file/{id}` proxy, which
+re-signs server-side, drops upstream `x-amz-*` headers, forces `private,
+no-store` plus `nosniff`, and gates on `auth()`. For photographs of a traveller's
+tax-free paperwork that posture is worth having, so the panes use
+`fileViewUrl(frontPictureFileId)` and the presigned fields go unused. The
+unavailable state consequently keys off a failed proxy fetch rather than a null
+URL.
 
 Two header actions, both offered only while `status === "Created"`, since the
 backend refuses either against a pair that has already been reviewed:
