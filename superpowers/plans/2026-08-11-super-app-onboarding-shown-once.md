@@ -12,10 +12,10 @@
 
 ## Global Constraints
 
-- **Repo:** all paths are relative to `c:/unirefund/super-app`, which is its own git repo. The plan and spec live in the separate `c:/unirefund/docs` repo — do not commit source changes there.
+- **Work happens in the worktree** `C:\unirefund\super-app\.claude\worktrees\onboarding-shown-once`, on branch `worktree-onboarding-shown-once`, cut from `main` at `fec2a9f`. Dependencies, `.env`, and `npm run init` output are already in place — do not re-run install or init. **Never touch `c:/unirefund/super-app` itself**: that checkout is shared with another active agent session. The plan and spec live in the separate `c:/unirefund/docs` repo — do not commit source changes there.
 - **Test project split:** anything that *renders* (router or component) must be named `*.router.test.tsx` or it lands in the node project and fails to load. Plain logic tests are `*.test.ts`. See the comment block at the top of `jest.config.js`.
-- **Baseline is not green.** Seven suites fail before any of this work (component suites sitting in the wrong Jest project). Judge every run against that baseline.
-- **Scope every Jest command to a file path.** A bare `npm test` also picks up sibling worktrees' tests.
+- **Baseline is not green, and it is recorded.** Before any of this work: **7 suites fail to load** (`src/components/__tests__/{BottomSheet,Button,DebouncedPressable,SafeAreaView,Toast}.test.tsx`, `src/templates/__tests__/{Modal,TabPage}.test.tsx` — the documented `react-native-web` resolution problem), and **475 tests pass with 0 failing**. A suite-load failure among those 7 is expected; any *test* failure is a regression.
+- **Prefer scoping Jest to a file path** while iterating. A full `npx jest` run is correct for the final sweep and takes ~80s.
 - **No new user-visible strings** in this work, so no localization keys and no `npm run init`.
 - **Storage access only through helper modules.** Never call `AsyncStorage` for these keys from a screen, hook, or provider — go through `onboardingSeen` / `rolePreference`.
 - **Comment sparingly.** Existing modules in this repo carry dense docblocks; do not match that density. Comment the non-obvious decision, not the mechanism.
@@ -304,8 +304,8 @@ git commit -m "feat(onboarding): resolve the signed-out landing route in one pla
 ### Task 3: Mark the flag when a session is adopted
 
 **Files:**
-- Modify: `src/providers/SessionProvider.tsx` (imports; `adoptSession`, around lines 167-174)
-- Test: `src/providers/__tests__/sessionLifecycle.router.test.tsx` (add mock + a new `describe` block)
+- Modify: `src/providers/SessionProvider.tsx` (imports; `adoptSession`, around lines 112-119 on this branch)
+- Create: `src/providers/__tests__/onboardingAdoption.router.test.tsx`
 
 **Interfaces:**
 - Consumes: `markOnboardingSeen()` from Task 1.
@@ -313,37 +313,113 @@ git commit -m "feat(onboarding): resolve the signed-out landing route in one pla
 
 **Why here:** `adoptSession` is the single funnel for every real session — credentials `signIn`, Didit `signInWithDidit`, and the cold-launch token bootstrap. Gating on `loaded` reuses the provider's own definition of a usable session: a token that cannot produce a profile is released rather than adopted, and must not burn the onboarding.
 
+**Note on the test file:** this branch is cut from `main`, which has no SessionProvider test suite, so this task builds its own. The mock block is large because mounting `SessionProvider` means standing up its whole bootstrap path; that is the cost of covering the one rule this feature turns on. Mock only what the provider reaches — do not add mocks speculatively.
+
 - [ ] **Step 1: Write the failing test**
 
-In `src/providers/__tests__/sessionLifecycle.router.test.tsx`, add this mock next to the existing `jest.mock("@/utils/rolePreference", ...)` block (around line 75):
+Create `src/providers/__tests__/onboardingAdoption.router.test.tsx`:
 
-```ts
+```tsx
+import { getUserProfileApi } from "@/actions/AccountService/actions";
+import { RootNavigator } from "@/features/RootNavigator";
+import { SessionProvider } from "@/providers/SessionProvider";
+import useUserStore from "@/store/user";
+import { markOnboardingSeen } from "@/utils/onboardingSeen";
+import { Slot } from "expo-router";
+import { renderRouter, screen } from "expo-router/testing-library";
+import React from "react";
+import { Text } from "react-native";
+
+/**
+ * When a session retires the onboarding slides.
+ *
+ * The rule: a token only spends the user's one first run if it actually
+ * produces a profile. `SessionProvider` is the real module — the flag write is
+ * the subject, so only the network and storage under it are faked.
+ */
+
+jest.mock("@react-native-async-storage/async-storage", () =>
+  require("@react-native-async-storage/async-storage/jest/async-storage-mock"),
+);
+
+jest.mock("expo-keep-awake", () => ({ useKeepAwake: () => undefined }));
+
+jest.mock("@/utils/auth/token", () => ({
+  getToken: jest.fn(async () => "stored-access-token"),
+  saveToken: jest.fn(async () => undefined),
+  clearToken: jest.fn(async () => undefined),
+  clearTokens: jest.fn(async () => undefined),
+}));
+
+jest.mock("@/utils/auth/decodeJWT", () => ({
+  decodeJWT: () => ({ sub: "u1" }),
+}));
+
+jest.mock("@/actions/AccountService/actions", () => ({
+  getUserProfileApi: jest.fn(async () => ({ userName: "traveller" })),
+  getGrantedPoliciesApi: jest.fn(async () => ({})),
+  getCurrentUserIdApi: jest.fn(async () => "u1"),
+  getProfilePictureByIdApi: jest.fn(async () => null),
+}));
+
+jest.mock("@/actions/AdministrationService/actions", () => ({
+  getCountrySettingsInfo: jest.fn(async () => null),
+}));
+
+jest.mock("@/actions/CRMService/actions", () => ({
+  getUserAffiliationsApi: jest.fn(async () => []),
+}));
+
+jest.mock("@/actions/TravellerService/actions", () => ({
+  getTravellerAccessToken: jest.fn(),
+}));
+
+jest.mock("@/actions/auth/actions", () => ({
+  getApiUrl: jest.fn(async () => "https://gateway.test"),
+  getSupportedScopes: jest.fn(async () => "openid offline_access"),
+  loginWithCredentials: jest.fn(),
+}));
+
+jest.mock("@/utils/rolePreference", () => ({
+  clearRolePreference: jest.fn(async () => undefined),
+  getRolePreference: jest.fn(async () => null),
+}));
+
 jest.mock("@/utils/onboardingSeen", () => ({
   markOnboardingSeen: jest.fn(async () => undefined),
 }));
-```
 
-Add these imports to the top of the file, alongside the existing ones:
-
-```ts
-import { getUserProfileApi } from "@/actions/AccountService/actions";
-import { markOnboardingSeen } from "@/utils/onboardingSeen";
-```
-
-Add these typed handles next to the existing `mockRefreshSession` / `mockIsAccessTokenStale` declarations:
-
-```ts
 const mockMarkOnboardingSeen = markOnboardingSeen as jest.MockedFunction<
   typeof markOnboardingSeen
 >;
 const mockGetUserProfileApi = getUserProfileApi as jest.MockedFunction<
   typeof getUserProfileApi
 >;
-```
 
-Append this `describe` block at the end of the file:
+const routes = {
+  _layout: () => (
+    <SessionProvider>
+      <RootNavigator />
+    </SessionProvider>
+  ),
+  "(auth)/_layout": () => <Slot />,
+  "(auth)/index": () => <Text>Home</Text>,
+  "(public)/_layout": () => <Slot />,
+  // Which login flow a logged-out user gets is not this suite's business.
+  "(public)/index": () => <Text>Landing</Text>,
+  loading: () => <Text>Loading</Text>,
+  "tag-preview": () => <Text>Tag preview</Text>,
+  validate: () => <Text>Validate</Text>,
+  "sticker-tag": () => <Text>Sticker tag</Text>,
+  "manual-entry": () => <Text>Manual entry</Text>,
+  "(modals)/language-selector": () => <Text>Language selector</Text>,
+};
 
-```ts
+beforeEach(() => {
+  jest.clearAllMocks();
+  useUserStore.setState({ user: null, role: null });
+});
+
 describe("the onboarding slides after a session is adopted", () => {
   it("retires them once a stored token produces a profile", async () => {
     renderRouter(routes, { initialUrl: "/" });
@@ -367,8 +443,10 @@ describe("the onboarding slides after a session is adopted", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx jest src/providers/__tests__/sessionLifecycle.router.test.tsx`
-Expected: The new "retires them" test FAILS with `expect(jest.fn()).toHaveBeenCalled()` / "Number of calls: 0". The "leaves them in place" test passes trivially. Every pre-existing test in the file must still pass — if any broke, the mock was added wrong; fix that before continuing.
+Run: `npx jest src/providers/__tests__/onboardingAdoption.router.test.tsx`
+Expected: "retires them once a stored token produces a profile" FAILS with `expect(jest.fn()).toHaveBeenCalled()` / "Number of calls: 0". "leaves them in place" passes trivially.
+
+If instead the suite fails to *load* or both tests error, the mock set is wrong for this branch — fix the fixture before touching `SessionProvider.tsx`, and report which mock was missing.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -409,16 +487,16 @@ Leave the existing docblock above `adoptSession` in place; append this sentence 
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx jest src/providers/__tests__/sessionLifecycle.router.test.tsx`
-Expected: PASS — all pre-existing tests plus the 2 new ones.
+Run: `npx jest src/providers/__tests__/onboardingAdoption.router.test.tsx`
+Expected: PASS — 2 tests.
 
 Run: `npm run typecheck`
-Expected: no errors from `SessionProvider.tsx`.
+Expected: no errors.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/providers/SessionProvider.tsx src/providers/__tests__/sessionLifecycle.router.test.tsx
+git add src/providers/SessionProvider.tsx src/providers/__tests__/onboardingAdoption.router.test.tsx
 git commit -m "feat(onboarding): retire the slides once a session loads"
 ```
 
@@ -720,10 +798,12 @@ Expected: no new errors versus the pre-work baseline.
 - [ ] **Step 2: Run every suite this work touches**
 
 ```bash
-npx jest src/utils/__tests__/onboardingSeen.test.ts src/utils/__tests__/landingRoute.test.ts src/app/__tests__/rootGuard.router.test.tsx src/providers/__tests__/sessionLifecycle.router.test.tsx
+npx jest src/utils/__tests__/onboardingSeen.test.ts src/utils/__tests__/landingRoute.test.ts src/app/__tests__/rootGuard.router.test.tsx src/providers/__tests__/onboardingAdoption.router.test.tsx
 ```
 
-Expected: all PASS. Do not run a bare `npm test` — it picks up sibling worktrees' tests, and seven suites fail at baseline for unrelated reasons.
+Expected: all PASS.
+
+Then confirm nothing else regressed with a full run — `npx jest` — and compare against the recorded baseline: **7 suites failing to load, 475 tests passing, 0 tests failing.** After this work the expected shape is the same 7 suites failing to load, with the passing count risen by the tests these tasks added. Any *test* failure (as opposed to a suite-load failure) is a regression, whatever the totals say.
 
 - [ ] **Step 3: Walk the behaviour on a device**
 
@@ -764,4 +844,6 @@ Summarise: which suites ran and their result, the typecheck/lint result, and whi
 
 **Type consistency:** `LandingRoute` is defined once in Task 2 and imported by Tasks 4 and 5. `hasSeenOnboarding` / `markOnboardingSeen` are named identically in Tasks 1, 2 and 3. `resolveRouteForRole` takes `RolePreference` (Tasks 2, 5); `resolveLandingRoute` takes nothing (Tasks 2, 4).
 
-**Deviation from the spec, noted:** the spec said the write site would get no dedicated test. Task 3 adds two, because `sessionLifecycle.router.test.tsx` already mounts `SessionProvider` against a stored token and a succeeding profile — the fixture exists, so the `loaded` gate can be pinned for nearly nothing. This adds coverage; it removes none.
+**Deviation from the spec, noted:** the spec said the write site would get no dedicated test. Task 3 adds two, in a suite it builds itself. The write site is the rule this whole feature turns on ("once user logs in"), and shipping it with only a typecheck behind it was the weakest point in the plan. The cost is a ~70-line mock block to mount `SessionProvider`; the return is the `loaded` gate pinned in both directions, including the case where a token that cannot produce a profile must not spend the user's one first run.
+
+**Branch context:** this work is cut from `main`, which has no SessionProvider test suite. An unrelated in-flight branch elsewhere adds `sessionLifecycle.router.test.tsx`, which mounts the same provider for session-expiry behaviour. If both land, the two suites are worth a look for a shared fixture — but they test different rules and neither blocks the other.
