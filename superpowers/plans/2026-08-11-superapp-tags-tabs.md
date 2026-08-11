@@ -23,7 +23,7 @@
 - **No new dependency.**
 - **Comments sparse.** The author has explicitly asked for far fewer comments than this repo shows. Comment only what the code cannot say — the superseded-adjacency rule earns one line. No docblock restating a component name.
 - **Staff must see nothing new.** `TagScreen` is shared with merchant and refund-point users, who have no verifications. `isStaff = isMerchant || isRefundPoint` already exists at `TagScreen.tsx:49`.
-- **There is almost no pure logic in this feature.** The tab is a two-value state and the status chip is a lookup. **Do not write unit tests that assert against a `useState`, and do not mock React Native components to manufacture coverage** — that is worse than no test. The gate is `tsc` + `eslint` + the existing suite staying green.
+- **Presentational components get render tests; the screen does not.** An earlier version of this constraint said the feature had no testable logic. That was wrong: `TagsTabBar` and `VerificationList` are prop-driven and own no state, and `src/screens/traveller/Cards/__tests__/HeroPills.router.test.tsx` already tests exactly this shape — `render` / `fireEvent` / `getByText` plus a one-line `useLocalization` mock returning the key. **Read that file before writing a test and follow it.** Two rules: the filename must end `.router.test.tsx` (`jest.config.js` routes those to the `jest-expo/android` project and excludes them from `node`), and the only permitted mock is `@/providers/LocalizationProvider` — **do not mock React Native primitives to manufacture coverage.** `TagScreen` itself gets no test: covering it would mean mocking the tag store, expo-router and two hooks, which tests the mocks. The screen's gate is `tsc` + `eslint` + the device checks at the end of this plan.
 - **Jest baseline drifts** because the other session's in-progress tests live in the same tree (446 → 462 → 467 → 472 over recent runs). Seven suites fail at collection for pre-existing reasons and are **not** your business. The rule is: **no new failures, and the test count must not drop.** Record what you see before you start.
 
 **Task order:** 1 → 2 → 3. Task 3 depends on both.
@@ -140,23 +140,72 @@ export function TagsTabBar({
 }
 ```
 
-`accessibilityRole="tab"` with `accessibilityState.selected` is what makes a screen reader announce this as tabs rather than two buttons — the spec calls that out as something to check on a device.
+`accessibilityRole="tab"` with `accessibilityState.selected` is what makes a screen reader announce this as tabs rather than two buttons — the spec calls that out as something to check on a device. Put `accessibilityRole="tablist"` on the wrapping `View`: React Native registers `tab` and `tablist` as separate native roles, and without the container role the pair is never announced as a grouped tab list.
 
-- [ ] **Step 5: Verify**
+- [ ] **Step 5: Write the render test**
+
+Create `src/screens/shared/Tags/Tag/__tests__/TagsTabBar.router.test.tsx`. Read `src/screens/traveller/Cards/__tests__/HeroPills.router.test.tsx` first and match its setup exactly — the localization mock returns the key, so assert on key strings, not on English copy.
+
+```tsx
+import { fireEvent, render, screen } from "@testing-library/react-native";
+import React from "react";
+import { TagsTabBar } from "../_components/TagsTabBar";
+
+jest.mock("@/providers/LocalizationProvider", () => ({
+  useLocalization: () => ({ t: (key: string) => key }),
+}));
+
+it("marks the active tab selected and leaves the other unselected", () => {
+  render(<TagsTabBar active="tags" onChange={jest.fn()} />);
+
+  expect(screen.getByText("MobileApp.Tags.Tabs.Tags").parent).toBeTruthy();
+  const tabs = screen.getAllByRole("tab");
+  expect(tabs).toHaveLength(2);
+  expect(tabs[0].props.accessibilityState.selected).toBe(true);
+  expect(tabs[1].props.accessibilityState.selected).toBe(false);
+});
+
+it("reports the other tab when it is pressed", () => {
+  const onChange = jest.fn();
+  render(<TagsTabBar active="tags" onChange={onChange} />);
+
+  fireEvent.press(screen.getByText("MobileApp.Tags.Tabs.Verifications"));
+
+  expect(onChange).toHaveBeenCalledWith("verifications");
+});
+
+it("does not fire for a press on the already-active tab's own key", () => {
+  const onChange = jest.fn();
+  render(<TagsTabBar active="verifications" onChange={onChange} />);
+
+  fireEvent.press(screen.getByText("MobileApp.Tags.Tabs.Verifications"));
+
+  expect(onChange).toHaveBeenCalledWith("verifications");
+});
+```
+
+Two things to resolve rather than assume:
+
+- **`getAllByRole("tab")`** may not resolve if the testing-library version maps roles differently, and `tabs[0]` may not be the `Pressable` that carries `accessibilityState`. If either fails, switch to `screen.getAllByA11yState`/`getByLabelText`-style queries or read the host element via the text node's ancestor — whatever the installed version supports. **Report which query you ended up using and why.**
+- The third test documents that pressing the active tab still reports its key — the component does not suppress it. If you think that behaviour is wrong, say so in your report rather than changing it; Task 3 sets state to the same value, which React no-ops.
+
+- [ ] **Step 6: Verify**
 
 ```bash
 cd c:/unirefund/super-app
 npx tsc --noEmit
 npx eslint src/screens/shared/Tags
+npx jest --silent src/screens/shared/Tags 2>&1 | tail -20
+npx jest --silent 2>&1 | tail -6
 ```
 
-Expected: both clean. A missing-key type error means Step 3 was skipped.
+Expected: tsc and eslint clean, the three new tests pass, and the full suite gains three tests with no new failures. A missing-key type error means Step 3 was skipped.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 cd c:/unirefund/super-app
-git add src/screens/shared/Tags/Tag/_components/TagsTabBar.tsx src/localization/resources/en-US.json src/localization/resources/tr-TR.json
+git add src/screens/shared/Tags/Tag/_components/TagsTabBar.tsx src/screens/shared/Tags/Tag/__tests__/TagsTabBar.router.test.tsx src/localization/resources/en-US.json src/localization/resources/tr-TR.json
 git commit -m "feat(tags): add the tags/verifications tab bar"
 ```
 
@@ -305,23 +354,94 @@ In `TagScreen.tsx`, change the import to `VerificationList` and the single usage
 
 This leaves the screen in a deliberate intermediate state: the block above the tag list now also shows `Completed` rows. That is transient and correct — Task 3 moves it to its own tab.
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 4: Write the render test**
+
+This is the one place in the feature with real branching — three statuses, a reason line that appears only on `Invalid`, a tag-created line only on `Completed`. Create `src/screens/shared/Tags/Tag/__tests__/VerificationList.router.test.tsx`, following `HeroPills.router.test.tsx`'s setup. The mock must supply `formatDate` as well as `t`, because the component destructures both.
+
+```tsx
+import { render, screen } from "@testing-library/react-native";
+import React from "react";
+import { VerificationList } from "../_components/VerificationList";
+
+jest.mock("@/providers/LocalizationProvider", () => ({
+  useLocalization: () => ({
+    t: (key: string) => key,
+    formatDate: (value: string) => `date(${value})`,
+  }),
+}));
+
+const item = (over: Record<string, unknown>) => ({
+  id: "v-1",
+  stickerLineNumber: "1234567890",
+  creationTime: "2026-08-01T10:00:00Z",
+  ...over,
+});
+
+it("shows the pending chip and no outcome lines for a Created pair", () => {
+  render(<VerificationList items={[item({ status: "Created" })] as never} />);
+
+  expect(screen.getByText("MobileApp.Verification.Status.Created")).toBeTruthy();
+  expect(screen.queryByText("MobileApp.Verification.TagCreated")).toBeNull();
+  expect(screen.getByText("date(2026-08-01T10:00:00Z)", { exact: false })).toBeTruthy();
+});
+
+it("shows the rejection reason only on an Invalid pair", () => {
+  render(
+    <VerificationList
+      items={[item({ id: "v-2", status: "Invalid", invalidReason: "Blurred sticker" })] as never}
+    />,
+  );
+
+  expect(screen.getByText("MobileApp.Verification.Status.Invalid")).toBeTruthy();
+  expect(screen.getByText("Blurred sticker", { exact: false })).toBeTruthy();
+});
+
+it("states that a tag was created for a Completed pair", () => {
+  render(<VerificationList items={[item({ id: "v-3", status: "Completed" })] as never} />);
+
+  expect(screen.getByText("MobileApp.Verification.Status.Completed")).toBeTruthy();
+  expect(screen.getByText("MobileApp.Verification.TagCreated")).toBeTruthy();
+});
+
+it("renders one row per item", () => {
+  render(
+    <VerificationList
+      items={[
+        item({ id: "v-4", status: "Created" }),
+        item({ id: "v-5", status: "Completed" }),
+      ] as never}
+    />,
+  );
+
+  expect(screen.getByText("MobileApp.Verification.Status.Created")).toBeTruthy();
+  expect(screen.getByText("MobileApp.Verification.Status.Completed")).toBeTruthy();
+});
+```
+
+Three things to resolve rather than assume:
+
+- **The `as never` casts** exist because the DTO has many more optional fields and a full literal would be noise. If the DTO's required fields make a plain object assignable, drop the cast — a real type is better. **Do not add `as any`.**
+- **`getByText` with `{ exact: false }`** is needed where the component interpolates a label and a value into one `Text` (`"…StickerLineNumber: 1234567890"`). If your queries fail, print the rendered tree with `screen.debug()` and match what is actually there rather than loosening every assertion.
+- Do **not** test the `items.length === 0` branch here. It returns `null` in this task and becomes an empty state in Task 3; a test written now would have to be rewritten immediately. Task 3 adds that case.
+
+- [ ] **Step 5: Verify**
 
 ```bash
 cd c:/unirefund/super-app
 npx tsc --noEmit
 npx eslint src/screens/shared/Tags
 grep -rn "PendingVerifications" src/ || echo "no stale references"
+npx jest --silent src/screens/shared/Tags 2>&1 | tail -20
 npx jest --silent 2>&1 | tail -6
 ```
 
-Expected: tsc and eslint clean, no stale references, and the suite with no new failures and no drop in test count versus your Task 1 baseline.
+Expected: tsc and eslint clean, no stale references, the four new tests passing, and the full suite up four tests with no new failures versus your Task 1 baseline.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 cd c:/unirefund/super-app
-git add src/screens/shared/Tags/Tag/_components/VerificationList.tsx src/screens/shared/Tags/Tag/_components/PendingVerifications.tsx src/screens/shared/Tags/Tag/TagScreen.tsx src/localization/resources/en-US.json src/localization/resources/tr-TR.json
+git add src/screens/shared/Tags/Tag/_components/VerificationList.tsx src/screens/shared/Tags/Tag/_components/PendingVerifications.tsx src/screens/shared/Tags/Tag/__tests__/VerificationList.router.test.tsx src/screens/shared/Tags/Tag/TagScreen.tsx src/localization/resources/en-US.json src/localization/resources/tr-TR.json
 git commit -m "feat(tags): show completed verifications alongside pending ones"
 ```
 
@@ -391,7 +511,22 @@ Replace `if (items.length === 0) return null;` in `VerificationList.tsx` with an
 
 Add `import { Ionicons } from "@/components/Ionicons";`. The greys and the `#9ca3af` are copied deliberately from `TagsEmptyState` so the two empty states match; that file predates the semantic tokens and consistency between the two beats purity here. Say so in your report rather than silently diverging.
 
-- [ ] **Step 3: Let `TagListHeader` hide its tag-specific controls**
+- [ ] **Step 3: Cover the empty state**
+
+Task 2 deliberately left this case untested because it returned `null`. Append one test to the existing `src/screens/shared/Tags/Tag/__tests__/VerificationList.router.test.tsx` — do not create a second file.
+
+```tsx
+it("prompts a traveller with no verifications", () => {
+  render(<VerificationList items={[]} />);
+
+  expect(screen.getByText("MobileApp.Verification.Empty.Title")).toBeTruthy();
+  expect(screen.getByText("MobileApp.Verification.Empty.Description")).toBeTruthy();
+});
+```
+
+If `Ionicons` fails to render under `jest-expo/android`, **report it rather than adding a mock for it** — a mocked icon proves nothing, and the four existing tests in this file will tell you whether the problem is the icon or the query.
+
+- [ ] **Step 4: Let `TagListHeader` hide its tag-specific controls**
 
 Add one optional prop, defaulting to showing everything so no other caller changes:
 
@@ -404,7 +539,7 @@ Default it in the destructure (`showTagControls = true`) and wrap two regions in
 
 The existing `searchEnabled` prop stays as it is; the search box renders when `showTagControls && searchEnabled`.
 
-- [ ] **Step 4: Wire the screen**
+- [ ] **Step 5: Wire the screen**
 
 In `TagScreen.tsx`:
 
@@ -482,27 +617,28 @@ Match the existing `onRefresh`'s shape — read it first; if it is not a `useCal
 
 **Do not touch the `useFocusEffect`.** It already reloads both datasets on focus, so switching tabs needs no refetch and no second effect.
 
-- [ ] **Step 5: Verify**
+- [ ] **Step 6: Verify**
 
 ```bash
 cd c:/unirefund/super-app
 npx tsc --noEmit
 npx eslint src/screens/shared/Tags
+npx jest --silent src/screens/shared/Tags 2>&1 | tail -20
 npx jest --silent 2>&1 | tail -6
 ```
 
-Expected: tsc and eslint clean; no new test failures and no drop in count versus your Task 1 baseline.
+Expected: tsc and eslint clean; the eight tests in this feature's two files passing; no new failures and no drop in count versus your Task 1 baseline.
 
 Then read `TagScreen.tsx` end to end and confirm by eye:
 - a staff user reaches no tab bar and no verifications branch;
 - the `FlashList` no longer has a `ListHeaderComponent`;
 - `Upload` renders on both tabs, search/sort/filter only on Tags.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 cd c:/unirefund/super-app
-git add src/screens/shared/Tags/Tag/TagScreen.tsx src/screens/shared/Tags/Tag/_components/TagListHeader.tsx src/screens/shared/Tags/Tag/_components/VerificationList.tsx src/localization/resources/en-US.json src/localization/resources/tr-TR.json
+git add src/screens/shared/Tags/Tag/TagScreen.tsx src/screens/shared/Tags/Tag/_components/TagListHeader.tsx src/screens/shared/Tags/Tag/_components/VerificationList.tsx src/screens/shared/Tags/Tag/__tests__/VerificationList.router.test.tsx src/localization/resources/en-US.json src/localization/resources/tr-TR.json
 git commit -m "feat(tags): split the screen into tags and verifications tabs"
 ```
 

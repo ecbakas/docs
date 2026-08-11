@@ -105,14 +105,28 @@ reasoning does not carry over to twenty rows.
 
 ## Testing
 
-There is almost no pure logic here. The tab is a two-value state and the status
-chip is a lookup, so unit tests would assert against a `useState` rather than
-against behaviour — worse than no test.
+*Amended during execution. This section first claimed the feature had no
+testable logic — that the tab was a `useState` and the chip a lookup. Review
+showed otherwise: both new components are prop-driven and own no state, and
+`src/screens/traveller/Cards/__tests__/HeroPills.router.test.tsx` already tests
+the same shape of component with nothing but `render`, `fireEvent` and a
+one-line localization mock. The original reasoning did not survive contact with
+the repo's own precedent.*
 
-The gate is `tsc`, `eslint`, and the existing Jest suite staying green, plus a
-device check. That is not a formality: the device is what caught the
-required-field label inconsistency that three rounds of code review had passed
-over as Minor.
+**The two components get render tests.** `TagsTabBar` is tested for which tab
+reports selected and that pressing the other one reports its key.
+`VerificationList` is where the real branching lives — three statuses, a
+rejection reason only on `Invalid`, a tag-created line only on `Completed`, and
+an empty state — and each branch gets a case. Tests are named
+`*.router.test.tsx`, which is how `jest.config.js` routes them to the
+`jest-expo/android` project.
+
+**`TagScreen` gets none.** Covering it means mocking the tag store, expo-router
+and two hooks, which tests the mocks rather than the screen.
+
+Beyond that the gate is `tsc`, `eslint`, the suite staying green, and a device
+check. The device is not a formality: it is what caught the required-field label
+inconsistency that three rounds of code review had passed over as Minor.
 
 What most needs looking at on a phone: that the tab bar reads as tabs rather than
 buttons, that switching does not flash the list, and that the Verifications empty
