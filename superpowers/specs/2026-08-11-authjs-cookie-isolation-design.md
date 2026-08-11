@@ -42,7 +42,7 @@ import { basename } from "node:path";
 
 // Next runs each app with cwd set to its own folder (that's how it finds the
 // app's next.config.js and .env), so this is "ssr" or "web".
-const APP = basename(process.cwd());
+const APP_COOKIE_PREFIX = basename(process.cwd());
 ```
 
 `process.cwd()` is the app directory under both `next dev` and `next start`, and under
@@ -57,9 +57,9 @@ does not discriminate.
 ```ts
 NextAuth({
   cookies: {
-    sessionToken: { name: `${APP}.authjs.session-token` },
-    callbackUrl: { name: `${APP}.authjs.callback-url` },
-    csrfToken: { name: `${APP}.authjs.csrf-token` },
+    sessionToken: { name: `${APP_COOKIE_PREFIX}.authjs.session-token` },
+    callbackUrl: { name: `${APP_COOKIE_PREFIX}.authjs.callback-url` },
+    csrfToken: { name: `${APP_COOKIE_PREFIX}.authjs.csrf-token` },
   },
   providers: [/* unchanged */],
   pages: {/* unchanged */},
