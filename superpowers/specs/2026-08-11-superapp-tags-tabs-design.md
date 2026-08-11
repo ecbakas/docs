@@ -163,6 +163,43 @@ What most needs looking at on a phone: that the tab bar reads as tabs rather tha
 buttons, that switching does not flash the list, and that the Verifications empty
 state appears for a traveller with no uploads.
 
+## Follow-ups left after implementation
+
+*Recorded 2026-08-11, from the whole-branch review. None block the feature.*
+
+**The tab is not gated on the `ViewMine` grant, and one environment combination
+makes it lie.** The action still degrades a 403 to `[]`, so a traveller holding
+`.Upload` but not `.ViewMine` uploads, is told "your photos were sent", taps
+Verifications, and reads "No verifications yet" — the exact false claim the
+error-state work above exists to prevent. Gating it needs a check first: a
+permission read that comes back `undefined` would hide the tab from everyone,
+which is worse. **Confirm `TagService.StickerManualVerifications.ViewMine` is
+present and true on a live traveller account before gating anything on it.**
+The risk-free half is available now: the empty state says "photograph it here"
+while the Upload button is hidden whenever `canUpload` is false.
+
+**Smaller items:** `TagsErrorState`'s name overreaches now that verifications
+use it. `TagScreen` has no render test — defensible, since covering it means
+mocking the tag store, expo-router, two hooks and `@novu/react-native`, but the
+sibling skeleton feature added four such screen tests, so the bar is lower than
+this spec assumed. Tag rows show "01 Aug 26" while verification rows one tap away
+show "01 August 2026, 10:00". The tab bar is a 36px touch target on a screen of
+40px controls. And once the session-expiry work merges, a 401 whose refresh
+fails will surface as "Couldn't load your verifications" beside that feature's
+own global notice.
+
+## Correction to the device checklist
+
+Device check 1 as originally written — that switching tabs "does not flash or
+re-mount the list" — is half unachievable. The body switches on `activeTab`, so
+the `FlashList` unmounts and the Tags scroll position resets. There is no flash
+and no refetch. **Check only the flash, and expect the scroll reset**, or the
+tester logs a false failure.
+
+Check 2's geometry is now settled in code — the empty state carries
+`flex-1 min-h-52` inside a `grow` content container, matching `TagsEmptyState`'s
+classes — so only its visual weight still needs eyes.
+
 ## Out of scope
 
 - Any change to the upload sheet, the QR prefill, or the image pipeline.
