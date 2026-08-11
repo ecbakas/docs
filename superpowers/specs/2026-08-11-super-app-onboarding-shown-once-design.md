@@ -235,6 +235,19 @@ commands to specific files — a bare `npm test` also picks up sibling worktrees
 
 No new user-visible strings, so no `npm run init` and no localization keys.
 
+## Known and accepted
+
+Because the onboarding screen does not guard itself — a deliberate choice, see
+*Rejected alternatives* — the route stays reachable by deep link. On a
+signed-out device that has already completed a sign-in,
+`unirefundsuperapp://onboarding` renders the slides.
+
+Accepted rather than closed. No in-app path reaches it, it requires an
+externally supplied URL, and `Stack.Protected` removes the whole `(public)`
+group while signed in, so it cannot fire for a signed-in user. Closing it would
+mean reintroducing the screen-level self-guard this spec rejected, to defend
+against a case no user reaches by using the app.
+
 ## Out of scope
 
 - Changing whether `signOut` clears `role_preference`. The role gate continues
