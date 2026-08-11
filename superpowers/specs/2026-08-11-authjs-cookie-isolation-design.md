@@ -52,6 +52,26 @@ per-app `.env` loading already depends on this, so the assumption is not a new o
 `APPLICATION_NAME` was considered and rejected: it is `UNIREFUND` in both `.env` files and
 does not discriminate.
 
+Two load-bearing assumptions worth stating, because neither is visible at the call site:
+
+**This module is imported into the proxy.** `apps/*/src/proxy.ts` → `auth/middleware.ts` →
+`auth.ts`, so `node:path` and `process.cwd()` execute there. That is safe only because
+Next 16 runs `proxy.ts` on the Node.js runtime by default; under Next 15 edge middleware it
+would have been a hard failure. A regression here fails loudly at module resolution rather
+than silently, but the dependency is invisible and undocumented elsewhere.
+
+**The realistic failure modes are silent.** If a deployment ever runs both apps from a
+shared working directory — a Docker or Nixpacks image with a common `WORKDIR`, which
+`NIXPACKS_NODE_VERSION` in `apps/web/.env` hints may be in play — both resolve to the same
+basename, and isolation reverts completely with no error. It reverts *completely* because
+the name is also the encryption salt (see Consequences). Renaming an app directory silently
+logs its users out. Only an illegal cookie-name character in the basename fails loudly.
+No Dockerfile, `nixpacks.toml`, or `output: "standalone"` exists in the repo today, so this
+is latent rather than active; whoever owns the deploy pipeline should confirm the start
+working directory. A one-line hedge — `process.env.AUTH_COOKIE_PREFIX || basename(process.cwd())`
+— would give operators an explicit escape hatch, and is the recommended follow-up if the
+deployment topology is ever in doubt.
+
 ### Cookie override
 
 ```ts
@@ -96,20 +116,35 @@ under a local `next start` alike. The cost is that the names lose the `__Secure-
 examined and both are unsafe here.
 
 **Gating on `NODE_ENV`** cannot work. A local `next start` sets `NODE_ENV=production`, so
-that gate would give local runs `__Secure-` names plus `secure: true` over
-`http://localhost` — which browsers reject outright, breaking local login. `NODE_ENV`
-cannot tell a local production build apart from a deployed one, which is exactly the
-distinction the requirement needs.
+that gate would give local runs `__Secure-`-prefixed names. Because the override supplies
+only `name`, `secure` would still come from `defaultCookies(url.protocol === "https:")` —
+that is, `false` over http. The result is a `__Secure-` name emitted *without* the `Secure`
+attribute, which every browser rejects unconditionally, breaking local login.
+
+Note the failure is the name/attribute mismatch, not the prefix over localhost as such:
+Chrome and Firefox treat `http://localhost` as a potentially-trustworthy origin and do
+accept `Secure` cookies there. That carve-out would not save the mismatch, and it does not
+apply at all to the non-localhost dev hostnames these apps also serve
+(`allowedDevOrigins: ["*.unirefund.com"]` in both `next.config.js`).
+
+`NODE_ENV` also cannot tell a local production build apart from a deployed one, which is
+exactly the distinction the requirement needs.
 
 **A request-aware config function** — `NextAuth((req) => config)`, supported in
 `next-auth@5.0.0-beta.25` — cannot work either. In `next-auth/index.js:101-125`, only
-`handlers` and `auth` receive the request; `signIn`, `signOut`, and `unstable_update` all
-call `config(undefined)`. This codebase calls all of them (`signInServerApi` in
-`packages/actions/core/AccountService/actions.ts`, `signOutServer` in `auth-actions.ts`,
-and the affiliation-switch refresh). A name derived from the request would therefore differ
-between the sign-in path and the read path: login would write a cookie that `auth()` never
-reads, and logout would clear the wrong name. Static names are what keep all four entry
-points in agreement.
+`handlers` and the request-carrying form of `auth` receive the request; `signIn`,
+`signOut`, and `unstable_update` all call `config(undefined)`. Worse, `next-auth/lib/index.js:44`
+does the same for the **no-argument RSC form of `auth()`** — the dominant read path in this
+codebase (`auth-actions.ts`, `packages/actions/core/lib.ts`,
+`packages/actions/unirefund/lib.ts`, `packages/ui/src/unirefund/document-capture/handlers.ts`).
+Together with `signInServerApi` in `packages/actions/core/AccountService/actions.ts` and
+`signOutServer` in `auth-actions.ts`, a request-derived name would differ between the
+sign-in path and the read path: login would write a cookie that `auth()` never reads, and
+logout would clear the wrong name. Static names are what keep every entry point in agreement.
+
+(The affiliation switcher is *not* an example of this: it uses the client
+`useSession().update`, which POSTs to `/api/auth/session` and so passes through `handlers`
+with a request. The argument rests on `signIn`, `signOut`, and RSC `auth()`.)
 
 What is retained: `secure`, `httpOnly`, `sameSite: "lax"`, and `path: "/"` are untouched
 and still come from Auth.js per request, so production cookies are still `Secure` over
@@ -129,15 +164,38 @@ never issued.
 
 ## Consequences
 
+- **The cookie name is also the encryption salt.** `@auth/core/jwt.js` derives the JWE key
+  via `hkdf("sha256", AUTH_SECRET, salt, "Auth.js Generated Encryption Key (" + salt + ")")`
+  where `salt` is `cookies.sessionToken.name`. Distinct names therefore produce distinct
+  derived keys from the same `AUTH_SECRET`, so the two apps are isolated cryptographically
+  as well as by name — verified on the wire: a `web`-salted token presented to ssr under
+  ssr's cookie name is rejected and cleared. This is the strongest single argument for the
+  change, and it means a future refactor that "simplifies" the names away would silently
+  remove a second isolation layer, not just a naming convention.
 - Every signed-in user is signed out once, in every environment, because the old
-  `authjs.session-token` is no longer read. Stale cookies remain in the browser until
-  they expire and are inert. In production this is a one-time forced re-login at deploy.
+  `authjs.session-token` is no longer read. In production this is a one-time forced
+  re-login at deploy.
+- Stale cookies are never actively cleared. Presenting a legacy `authjs.session-token`
+  returns 200 with no clearing `Set-Cookie`, and that cookie carries the 30-day session
+  `maxAge` — so it lingers and is transmitted on every request until it expires. The
+  csrf and callback-url cookies have no `maxAge` and die on browser close.
+- In dev, `localhost` can now carry up to nine auth cookies at once (three `web.*`, three
+  `ssr.*`, three legacy). This file's own comments record a prior HTTP 431 incident from
+  oversized auth headers; post-JWT-stripping the token is ~1-2KB so this is headroom
+  erosion rather than failure, but developers should clear `localhost` cookies once after
+  pulling.
 - Production cookie names change too. Nothing in the codebase reads them by name — the
   only hardcoded matches anywhere are unrelated error-message parsing in
-  `apps/*/src/utils.ts` — so there are no call sites to update.
-- The server-side token store is unaffected. Tokens never live in the cookie
-  (`jwt` callback strips them), and store keys are namespaced separately via
-  `AUTH_REDIS_PREFIX`.
+  `apps/*/src/utils.ts` — so there are no call sites to update. Any external WAF, CDN, or
+  observability rule keyed on `__Secure-authjs.*` or `__Host-authjs.csrf-token` would need
+  updating; nothing in-repo matches.
+- The server-side token store is unaffected by this change: tokens never live in the cookie
+  (`jwt` callback strips them). Note that store-key namespacing is **opt-in, not
+  structural** — `token-store.ts` defaults to a shared `urw:auth:token:` prefix when
+  `AUTH_REDIS_PREFIX` is unset. The apps are separate today only because ssr sets it and
+  web has Redis commented out. Two apps sharing one Redis without setting it would key on
+  `sub` alone, and one app's sign-out would wipe the other's tokens. Pre-existing and
+  orthogonal to cookies, but not the guarantee an earlier draft of this document claimed.
 
 ## Verification
 
