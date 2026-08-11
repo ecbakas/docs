@@ -98,6 +98,37 @@ both datasets are already current.
 The Verifications tab gets its own pull-to-refresh calling the hook's `reload`,
 matching the Tags tab's existing `RefreshControl`.
 
+### The empty state must not absorb failures
+
+*Added during execution, after review of the wiring task.*
+
+The same argument that forces `Completed` onto this tab forces an error state
+onto it. `getStickerManualVerificationsMyApi` swallows every failure into `[]` —
+written that way because the `ViewMine` grant is absent on some environments and
+the old section had to vanish rather than break the tags screen it sat on. As a
+section that was harmless: rendering nothing is not a claim. As a tab body with
+an empty state, it becomes one. A traveller on a dead connection would read
+"No verifications yet" and believe it.
+
+This repo has already ruled on the trade-off, in the very file the empty state
+was copied from: *"an outage reading as 'you have no tags' is the more
+misleading of the two."* The Tags tab honours it. So:
+
+- The action keeps returning `[]` for **403 only** — the case its catch was
+  actually written for — and lets everything else bubble, which is what
+  `.claude/rules/api-actions.md` asks for anyway.
+- `usePendingVerifications` grows an `error` and an `isLoading` channel.
+  `isLoading` starts true for an enabled caller, or the tab flashes the empty
+  card before the first response lands.
+- The tab body branches the way the tags body already does: skeleton while
+  loading, error state only when there is nothing to show, list otherwise. A
+  failed background refresh must not pull a list out from under someone reading
+  it.
+
+`TagsErrorState` takes optional copy keys rather than being duplicated. Its name
+overreaches once verifications use it, but renaming a shared component is not
+this plan's business.
+
 The list is capped at 20 items, so it stays a **plain scrolling list**, not a
 second `FlashList`. Virtualisation exists on the Tags tab because that list can
 hold a hundred tags and mounting them all was what made the screen stall; that
