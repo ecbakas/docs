@@ -115,6 +115,14 @@ directly below. The consequence is the same too, and is correct: a traveller
 whose recent pairs are all `Completed` sees no section, because nothing is
 outstanding.
 
+**Superseded 2026-08-11 by
+[2026-08-11-superapp-tags-tabs-design.md](2026-08-11-superapp-tags-tabs-design.md).**
+That design splits this screen into Tags and Verifications tabs, which removes
+the adjacency the paragraph above rests on — the tag is no longer "directly
+below", it is a tab away. The Verifications tab therefore shows **all three**
+statuses. The `tagId` half of the reasoning still holds: a `Completed` row states
+that a tag was created but does not link to it.
+
 Use a local status→style map. Do **not** reach for whatever styles `TagCard` uses
 for `TagStatusType` — that is a different enum with different members, and
 sharing it would make the two look interchangeable.
