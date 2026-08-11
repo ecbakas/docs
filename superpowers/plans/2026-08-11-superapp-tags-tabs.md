@@ -526,6 +526,14 @@ it("prompts a traveller with no verifications", () => {
 
 If `Ionicons` fails to render under `jest-expo/android`, **report it rather than adding a mock for it** — a mocked icon proves nothing, and the four existing tests in this file will tell you whether the problem is the icon or the query.
 
+Then tighten the weakest of Task 2's four tests. `"renders one row per item"` currently asserts both status chips appear in a mixed list, which tests 1 and 3 already cover between them. Add one assertion so it earns its place — that the outcome line belongs to its own row and does not bleed onto the sibling:
+
+```tsx
+  expect(screen.getAllByText("MobileApp.Verification.TagCreated")).toHaveLength(1);
+```
+
+The list in that test is one `Created` item and one `Completed` item, so exactly one row may carry that line.
+
 - [ ] **Step 4: Let `TagListHeader` hide its tag-specific controls**
 
 Add one optional prop, defaulting to showing everything so no other caller changes:
