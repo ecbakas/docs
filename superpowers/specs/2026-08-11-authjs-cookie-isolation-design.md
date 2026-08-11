@@ -25,6 +25,11 @@ out of scope.
 Each app issues and reads its own session cookies, so a login on one origin has no effect
 on the other. No change to auth behaviour beyond the cookie names.
 
+The isolation must hold identically in every environment — `next dev`, a local
+`next build && next start`, and deployed. Behaviour that varies by environment is
+explicitly not wanted, because a local production build is the case most likely to be
+tested and least likely to be covered by a `NODE_ENV`-based rule.
+
 ## Design
 
 One file changes: `packages/utils/auth/auth.ts`. No `.env`, `turbo.json`, app code, or
@@ -50,16 +55,12 @@ does not discriminate.
 ### Cookie override
 
 ```ts
-const isDev = process.env.NODE_ENV !== "production";
-
 NextAuth({
-  ...(isDev && {
-    cookies: {
-      sessionToken: { name: `${APP}.authjs.session-token` },
-      callbackUrl: { name: `${APP}.authjs.callback-url` },
-      csrfToken: { name: `${APP}.authjs.csrf-token` },
-    },
-  }),
+  cookies: {
+    sessionToken: { name: `${APP}.authjs.session-token` },
+    callbackUrl: { name: `${APP}.authjs.callback-url` },
+    csrfToken: { name: `${APP}.authjs.csrf-token` },
+  },
   providers: [/* unchanged */],
   pages: {/* unchanged */},
   session: {/* unchanged */},
@@ -67,7 +68,7 @@ NextAuth({
 });
 ```
 
-Development cookie names become:
+Cookie names become, in every environment:
 
 | Cookie | apps/ssr | apps/web |
 | --- | --- | --- |
@@ -87,18 +88,38 @@ cookies: merge(cookie.defaultCookies(authOptions.useSecureCookies ?? url.protoco
 and `secure` coming from the per-request defaults. Restating them would add a second
 source of truth that could drift from the framework's; omitting them cannot.
 
-### Why the override is development-only
+### Why the names are static, and why `__Secure-` / `__Host-` are dropped
 
-`useSecureCookies` defaults to `url.protocol === "https:"` and is evaluated per request.
-The `cookies` object is static, built once at module load, so it cannot reproduce the
-`__Secure-` and `__Host-` name prefixes that Auth.js applies to https requests. Rather than
-pin those statically — which would hard-assume every production deployment is https, and
-break login where that is false — the override is skipped in production entirely. In
-production the spread contributes nothing and Auth.js defaults apply untouched, keeping
-`__Secure-authjs.session-token` and `__Host-authjs.csrf-token`.
+The override applies in every environment, so that isolation holds under `next dev` and
+under a local `next start` alike. The cost is that the names lose the `__Secure-` and
+`__Host-` prefixes Auth.js would otherwise apply to https requests. Two alternatives were
+examined and both are unsafe here.
 
-This is safe because ssr and web are served from different hosts in production, so no
-collision exists there to fix.
+**Gating on `NODE_ENV`** cannot work. A local `next start` sets `NODE_ENV=production`, so
+that gate would give local runs `__Secure-` names plus `secure: true` over
+`http://localhost` — which browsers reject outright, breaking local login. `NODE_ENV`
+cannot tell a local production build apart from a deployed one, which is exactly the
+distinction the requirement needs.
+
+**A request-aware config function** — `NextAuth((req) => config)`, supported in
+`next-auth@5.0.0-beta.25` — cannot work either. In `next-auth/index.js:101-125`, only
+`handlers` and `auth` receive the request; `signIn`, `signOut`, and `unstable_update` all
+call `config(undefined)`. This codebase calls all of them (`signInServerApi` in
+`packages/actions/core/AccountService/actions.ts`, `signOutServer` in `auth-actions.ts`,
+and the affiliation-switch refresh). A name derived from the request would therefore differ
+between the sign-in path and the read path: login would write a cookie that `auth()` never
+reads, and logout would clear the wrong name. Static names are what keep all four entry
+points in agreement.
+
+What is retained: `secure`, `httpOnly`, `sameSite: "lax"`, and `path: "/"` are untouched
+and still come from Auth.js per request, so production cookies are still `Secure` over
+https. What is lost is the browser-enforced guarantee behind the name prefixes —
+`__Secure-` (set only over https) and `__Host-` (host-locked, no `Domain`). That is a
+defense-in-depth reduction against an attacker who already controls a sibling
+`*.unirefund.com` origin, not an open hole. Accepted as the price of uniform behaviour.
+
+If that hardening is wanted back in real deployments later, the smallest reversible change
+is an env var set only there, selecting prefixed names — deliberately not built now.
 
 ### Cookies deliberately not overridden
 
@@ -108,12 +129,12 @@ never issued.
 
 ## Consequences
 
-- Everyone currently signed in locally is signed out once, because the old
+- Every signed-in user is signed out once, in every environment, because the old
   `authjs.session-token` is no longer read. Stale cookies remain in the browser until
-  they expire and are inert.
-- Running `next start` for both apps locally puts `NODE_ENV=production` in both, so the
-  override is skipped and the collision returns. Accepted: production uses different
-  hosts, and `next dev` is how both apps are run side by side.
+  they expire and are inert. In production this is a one-time forced re-login at deploy.
+- Production cookie names change too. Nothing in the codebase reads them by name — the
+  only hardcoded matches anywhere are unrelated error-message parsing in
+  `apps/*/src/utils.ts` — so there are no call sites to update.
 - The server-side token store is unaffected. Tokens never live in the cookie
   (`jwt` callback strips them), and store keys are namespaced separately via
   `AUTH_REDIS_PREFIX`.
@@ -126,6 +147,10 @@ never issued.
    hold their own `*.authjs.session-token` under the app-specific name.
 4. Sign in to one app, reload the other, and confirm it is still signed out.
 5. Sign out of one app and confirm the other's session is untouched.
+6. Repeat steps 2–5 with `next build && next start` for both apps. This is the case the
+   `NODE_ENV` gate would have missed, so it is the one that proves the requirement.
+7. Confirm sign-out actually clears the cookie, not just the session. This exercises the
+   `signOut` path, which resolves the cookie name independently of any request.
 
 ## Out of scope
 
