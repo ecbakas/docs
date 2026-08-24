@@ -2529,7 +2529,7 @@ jest.mock("@/components/QrScanner", () => ({ QrScanner: () => null }));
 - [ ] **Step 7: Run both Home suites**
 
 Run: `npx jest src/screens/traveller/Home`
-Expected: PASS — `StatusHome` (8), `HomeUploadEntry` (4), `ActiveDocumentPill`, `ActionList` (8), `RefundSummary` (7), `useHomeStatus` (4), `homeStatus` (27).
+Expected: PASS — `StatusHome` (8), `HomeUploadEntry` (4), `ActiveDocumentPill`, `ActionList` (8), `RefundSummary` (9), `useHomeStatus` (5), `homeStatus` (27).
 
 - [ ] **Step 8: Full gate**
 
