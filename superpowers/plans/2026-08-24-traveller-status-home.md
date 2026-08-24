@@ -243,7 +243,7 @@ export function tagExpectedAmountIsEstimate(tag: MoneyFields): boolean {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `npx jest src/utils/__tests__/tagMoney.test.ts`
-Expected: PASS, 9 tests.
+Expected: PASS, 12 tests (5 + 5 + 2 across the three `describe` blocks).
 
 - [ ] **Step 5: Commit**
 
@@ -948,7 +948,7 @@ export function buildHomeActions(
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `npx jest src/screens/traveller/Home/__tests__/homeStatus.test.ts`
-Expected: PASS — 9 summary tests plus 16 action tests.
+Expected: PASS — 27 tests in the file: the 9 summary tests from Task 2, plus 18 added here (3 `daysUntil`, 3 `deadlineTone`, 12 `buildHomeActions`).
 
 - [ ] **Step 5: Commit**
 
@@ -1392,6 +1392,10 @@ jest.mock("@/providers/LocalizationProvider", () => ({
   }),
 }));
 
+// Mocked for the same reason the other Home suites mock it: the real component
+// goes through nativewind's `cssInterop` to map `className` onto `color`.
+jest.mock("@/components/Ionicons", () => ({ Ionicons: () => null }));
+
 function summary(overrides: Partial<RefundSummary> = {}): RefundSummary {
   return {
     expected: [{ currency: "TRY", amount: 1248.5, tagCount: 3, isEstimate: false }],
@@ -1601,7 +1605,10 @@ import { View } from "react-native";
  */
 export function HomeSkeleton() {
   return (
-    <View className="gap-4">
+    // `testID` so the screen's loading state can be asserted positively — a
+    // test that only checks the loaded content is absent also passes when the
+    // screen renders nothing at all.
+    <View testID="home-skeleton" className="gap-4">
       <SkeletonRoot className="gap-3 rounded-2xl border border-border bg-card px-5 py-4">
         <Skeleton className="h-2.5 w-28" />
         <Skeleton className="h-8 w-44" />
@@ -2053,6 +2060,9 @@ it("shows the skeleton while the status is loading", () => {
 
   renderHome();
 
+  // Asserted positively: checking only that the start card is absent would
+  // also pass if the screen rendered nothing at all.
+  expect(screen.getByTestId("home-skeleton")).toBeTruthy();
   expect(screen.queryByText("MobileApp.Home.Start.Title")).toBeNull();
 });
 
@@ -2457,7 +2467,7 @@ jest.mock("@/components/QrScanner", () => ({ QrScanner: () => null }));
 - [ ] **Step 7: Run both Home suites**
 
 Run: `npx jest src/screens/traveller/Home`
-Expected: PASS — `StatusHome` (6), `HomeUploadEntry` (4), `ActiveDocumentPill`, `ActionList` (8), `RefundSummary` (7), `useHomeStatus` (4), `homeStatus` (25).
+Expected: PASS — `StatusHome` (6), `HomeUploadEntry` (4), `ActiveDocumentPill`, `ActionList` (8), `RefundSummary` (7), `useHomeStatus` (4), `homeStatus` (27).
 
 - [ ] **Step 8: Full gate**
 
