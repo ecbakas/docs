@@ -2105,6 +2105,29 @@ it("shows the skeleton while the status is loading", () => {
   expect(screen.queryByText("MobileApp.Home.Start.Title")).toBeNull();
 });
 
+// A background refresh can fail while good content is on screen — the focus
+// refresh, for one. The content must survive, with a retry offered beside it.
+it("keeps the summary on screen when a refresh fails", () => {
+  mockStatus = { ...mockStatus, error: "load-failed", hasTags: true };
+
+  renderHome();
+
+  expect(screen.getByText("MobileApp.Tags.LoadFailed")).toBeTruthy();
+  expect(screen.getByText("MobileApp.Tags.Retry")).toBeTruthy();
+  // The content is still there — this is a banner, not a replacement.
+  expect(screen.getByText("latest-tag")).toBeTruthy();
+});
+
+// With nothing to preserve, the full-bleed error state is the honest thing.
+it("replaces the body with the error state when there is nothing to show", () => {
+  mockStatus = { ...mockStatus, error: "load-failed", hasTags: false };
+
+  renderHome();
+
+  expect(screen.queryByText("MobileApp.Home.Start.Title")).toBeNull();
+  expect(screen.queryByTestId("home-skeleton")).toBeNull();
+});
+
 // The whole screen for a brand-new traveller, so it points at the scanner.
 it("offers a starting point when there are no tags", () => {
   mockStatus = { ...mockStatus, hasTags: false };
@@ -2506,7 +2529,7 @@ jest.mock("@/components/QrScanner", () => ({ QrScanner: () => null }));
 - [ ] **Step 7: Run both Home suites**
 
 Run: `npx jest src/screens/traveller/Home`
-Expected: PASS — `StatusHome` (6), `HomeUploadEntry` (4), `ActiveDocumentPill`, `ActionList` (8), `RefundSummary` (7), `useHomeStatus` (4), `homeStatus` (27).
+Expected: PASS — `StatusHome` (8), `HomeUploadEntry` (4), `ActiveDocumentPill`, `ActionList` (8), `RefundSummary` (7), `useHomeStatus` (4), `homeStatus` (27).
 
 - [ ] **Step 8: Full gate**
 
