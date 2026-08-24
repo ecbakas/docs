@@ -1159,6 +1159,14 @@ it("reports loading while the tag store has never resolved", () => {
 });
 
 it("summarises the tags in the store", () => {
+  // A verified active document, so this test isolates the summary and the stamp
+  // action it names. Left document-less, the traveller is unverified and an
+  // `identity` action joins the list — which is correct behaviour, but not what
+  // this test is about.
+  mockSwitcher.documents = [
+    { travellerDocumentId: "d1", evidenceLevel: "Medium" },
+  ] as never;
+  mockSwitcher.activeDocumentId = "d1";
   useTagStore.getState().setLoading(false);
   useTagStore.getState().setTags({
     items: [
@@ -1185,6 +1193,37 @@ it("summarises the tags in the store", () => {
     amount: 412,
   });
   expect(result.current.actions.map((a) => a.kind)).toEqual(["stamp"]);
+});
+
+// The highest-impact case, and the one an `isVerified` shortcut for
+// document-less accounts would silently hide: a first tag is already issued, so
+// there is money at stake, and no document exists to verify it against.
+it("asks a traveller with no document at all to verify their identity", () => {
+  mockSwitcher.documents = [];
+  mockSwitcher.activeDocumentId = undefined;
+  useTagStore.getState().setLoading(false);
+  useTagStore.getState().setTags({
+    items: [
+      {
+        id: "a",
+        tagNumber: "T-1",
+        status: "Issued",
+        currency: "TRY",
+        refund: 412,
+        issueDate: new Date(NOW).toISOString(),
+        exportValidationExpirationDate: new Date(NOW + 4 * DAY).toISOString(),
+        travellerDocumentNumber: "P1",
+      },
+    ],
+    totalCount: 1,
+  });
+
+  const { result } = renderHook(() => useHomeStatus());
+
+  expect(result.current.actions.map((a) => a.kind)).toEqual([
+    "stamp",
+    "identity",
+  ]);
 });
 
 it("raises the payout action when no card or bank token exists", () => {
@@ -1341,7 +1380,7 @@ export function useHomeStatus(): HomeStatus {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `npx jest src/screens/traveller/Home/__tests__/useHomeStatus.router.test.ts`
-Expected: PASS, 4 tests.
+Expected: PASS, 5 tests.
 
 - [ ] **Step 5: Typecheck**
 
