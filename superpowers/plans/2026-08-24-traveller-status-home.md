@@ -2338,7 +2338,11 @@ export default function Page() {
             <Text className="flex-1 text-sm text-amber-900">
               {t("MobileApp.Tags.LoadFailed")}
             </Text>
-            <Pressable onPress={() => loadTags()} hitSlop={8}>
+            {/* `loadTags(true)`, not `loadTags()`: the non-silent form sets
+                `isLoading`, which sends `body()` to the skeleton and destroys
+                the very content this banner exists to preserve. The full error
+                state below is the only place the bare call is right. */}
+            <Pressable onPress={() => loadTags(true)} hitSlop={8}>
               <Text className="text-sm font-semibold text-amber-900">
                 {t("MobileApp.Tags.Retry")}
               </Text>
