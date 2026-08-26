@@ -763,7 +763,9 @@ router.back() would no-op. It gets an explicit replace to
 
 ### Task 6: The cosmetic unify — isolated so it can be reverted alone
 
-Everything above is functional and validated by tests. This task is neither: it restyles eighteen `ModalTemplate` screens that had no back-button problem, and **no available device can judge it** — the only device is an 800dp tablet where an 8px inset shift is negligible, and the `Pixel_9_Pro` AVD is unavailable. It ships on reasoning, so it ships alone.
+Everything above is functional and validated by tests. This one is cosmetic: it restyles eighteen `ModalTemplate` screens that had no back-button problem. It stays in its own commit so it can be reverted without touching the fix.
+
+**Update (2026-08-26):** a compact device — `V3`, ~423dp wide — is being made available, so this *can* be judged after all. Validate it there in Task 7 rather than shipping it on reasoning. `V3` previously carried only the pos-app, so it will likely need `adb install android/app/build/outputs/apk/debug/app-debug.apk` first. If `V3` does not materialise, fall back to shipping this commit unvalidated and say so plainly.
 
 **Files:**
 - Modify: `src/templates/Modal.tsx` — `px-6` → `px-4` in three places: the header wrapper (~line 113), the `ScrollView` (~line 141), the pinned action `View` (~line 170); and drop the `titleClassName` override added in Task 3.
@@ -826,10 +828,10 @@ git add src/templates/Modal.tsx src/templates/__tests__/Modal.router.test.tsx
 git commit -m "style: unify the page inset at px-4 and the title at font-bold
 
 Isolated in its own commit: this restyles eighteen ModalTemplate screens
-that had no back-button problem, and no available device can validate
-it. The only attached device is an 800dp tablet, where an 8px inset
-shift is negligible; at 360dp it is ~4.4% of screen width. Revert this
-commit alone if a compact device later says it is wrong."
+that had no back-button problem. The 800dp tablet cannot judge an 8px
+inset shift; the ~423dp V3 can, and does so in Task 7. Revert this
+commit alone if it reads too tight there — Tasks 1-5 do not depend on
+it."
 ```
 
 ---
@@ -912,9 +914,18 @@ These are the screens that took the new `showBack` prop and cannot be reached as
 - refund point → Refund (**three branches**)
 - customs → Validate
 
-- [ ] **Step 6: Capture the px-4 record**
+- [ ] **Step 6: Judge the px-4 unify on the compact device**
 
-Screenshot two or three modal screens. This is **not** a verdict — the tablet cannot deliver one. It is a before/after record for whoever reviews on a compact device later.
+The 800dp tablet cannot settle this; `V3` (~423dp) can. Ask the user whether `V3` is attached before starting.
+
+```bash
+adb devices -l
+adb -s <v3-serial> install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+`V3` previously carried only the pos-app, so super-app probably is not installed. Point it at Metro the same way as Step 3, then compare a text-heavy modal screen (Edit Profile, Register) against the pre-change screenshots.
+
+The question is narrow: **at 423dp, does px-4 leave the content too tight against the screen edge?** If yes, `git revert` the Task 6 commit alone — Tasks 1–5 are unaffected. If `V3` never arrives, say plainly that this shipped unvalidated.
 
 - [ ] **Step 7: Report**
 
