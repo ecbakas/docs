@@ -57,23 +57,34 @@ Four layers, each usable and testable without the ones above it.
 
 `CountryInput/countries.json` moves here unchanged and becomes the single dataset. The 242 `phoneCodes` are extracted from the doomed `PhoneInput/countries.json` into a small sibling file, dropping `an`. `PhoneInput/countries.json` is then deleted: **−297KB of bundle**, since Metro bundles JSON whole and nothing tree-shakes it.
 
-`index.ts` exports:
+The module splits along a line jest forces. `react-native-circle-flags` resolves `react-native-web/dist/exports/Image`, which this app does not depend on, so **any module importing it cannot load in the fast `node` jest project** — the same trap `mrz` and nativewind set. Probed, not assumed:
+
+```
+Cannot find module 'react-native-web/dist/exports/Image'
+  from 'node_modules/react-native-circle-flags/lib/module/CircleFlag.js'
+```
+
+So the flag lookup lives apart from the data, and the data stays testable without a renderer:
 
 ```ts
+// countries.ts — pure, no RN imports, tested in the `node` project
 type CountryRecord = {
   alpha2: string;
   alpha3: string;
   name: string;          // localized, falling back to `en`
-  flag: ImageSourcePropType;
   phoneCode?: string;    // "+90"
 };
+buildCountries(opts: { languageCode: string; requirePhoneCode?: boolean }): CountryRecord[]
+findCountryByCode(records: CountryRecord[], code: string): CountryRecord | undefined
 
+// flags.ts — UI only
+flagFor(alpha2: string): ImageSourcePropType   // `xx` placeholder when absent
+
+// useCountries.ts — thin memo over buildCountries
 useCountries(opts?: { requirePhoneCode?: boolean }): CountryRecord[]
-countryByAlpha2(code: string): CountryRecord | undefined
-countryByAlpha3(code: string): CountryRecord | undefined
 ```
 
-`useCountries` localizes via `useLocalization`, sorts by `localeCompare`, and memoizes on `languageCode`. The two lookups absorb today's `getCountryCodeFromAlpha2` / `getCountryCodeFromAlpha3`, which are exported from `CountryInput.tsx` but imported nowhere outside it.
+`buildCountries` sorts by `localeCompare`; `useCountries` supplies `languageCode` and memoizes on it. `findCountryByCode` switches on code length and absorbs today's `getCountryCodeFromAlpha2` / `getCountryCodeFromAlpha3` — exported from `CountryInput.tsx`, imported nowhere outside it. It takes an already-localized list rather than reaching for the raw JSON, so the name `CountryInput` displays follows the app's language, which today's English-only lookup does not.
 
 Counts to assert, not assume: 249 countries; 241 with a phone code; the 8 without are `BQ BV CW TF HM SX UM EH`. Six (`BQ BV HM SH SJ UM`) have no flag asset in `react-native-circle-flags` and take the library's `xx` placeholder — which today's `CountrySelectionModal` does *not* apply, passing `undefined` to `<Image source>`.
 
@@ -150,7 +161,7 @@ Baselines are re-measured on the branch point, not quoted: `AGENTS.md` records t
 - `npm run typecheck` — clean
 - `npm test` — no new failures against a baseline measured on `d719a04`
 - `npm run lint` — no new errors or warnings
-- `npm run init` is **not** required: no new localization keys. `Common.Back`, `TenantSelection.Refresh`, `TenantSelection.Search`, `TenantSelection.Empty`, `TenantSelection.NoMatch` and `CountrySelection.Title` all already exist in both resource files.
+- `npm run init` **is** required. The tenant picker needs nothing new — `Common.Back`, `TenantSelection.{Title,Search,Refresh,Empty,NoMatch,Retry,LoadFailed}` all already exist in both resource files — but `CountrySelection` currently holds **only** `Title`, so decision 3 (giving the country pickers a search box) adds `CountrySelection.Search` and `CountrySelection.NoMatch` to `en-US.json` and `tr-TR.json`. `TranslationKey` is derived from the gitignored generated bundles, so `npm run init` must run before `tsc` will accept either `t()` call.
 - On-device Android, since an inset bug only truly reproduces there: open all three pickers, confirm the header is tappable, the lists are populated, search filters, and selection writes back.
 
 ## Out of scope
