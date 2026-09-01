@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- **Repo:** `super-app`. **Branch:** `refactor/superapp-selection-modals`, already cut from `d719a04`. Do not create a worktree; do not switch branches.
-- **Never run `git reset --hard`, `git stash`, or `git checkout --` on tracked files.** This checkout is shared with other agent sessions.
+- **Working directory:** `c:\unirefund\super-app-selection-modals` — a git worktree on branch `refactor/superapp-selection-modals`, cut from `d719a04`. **Not** `c:\unirefund\super-app`: another agent session holds that checkout on a different branch, and Task 1 was interrupted by exactly that. Do not switch branches; do not work in the shared checkout.
+- **Never run `git reset --hard`, `git stash`, `git clean`, or `git checkout --` on tracked files.** These directories are shared with other agent sessions, and the two are the same repository — a destructive command in one can cost work in the other. If you find unexpected modified files, report them; do not clean them.
 - **Render tests must be named `*.router.test.tsx`** (`.ts` for `renderHook`). Jest runs two projects: `node` ignores that suffix, `router` matches only it. A render test in the `node` project fails to *load*, not to assert.
 - **Never import `react-native-circle-flags` from a module that a `node`-project test imports.** It resolves `react-native-web/dist/exports/Image`, which is not a dependency.
 - **Use semantic colour tokens** (`text-foreground`, `bg-card`, `border-border`, …). Never `bg-white`, `text-white`, `bg-black`, `border-gray-*`, or raw hex. `src/components/ui/__tests__/tokens.test.ts` guards this and is *already red* from pre-existing violations — do not add to its list.
@@ -262,17 +262,21 @@ If `resolveJsonModule` errors appear, check `tsconfig.json` — the existing JSO
 
 ```bash
 git add src/data/countries src/components/CountryInput
-git commit -m "refactor(super-app): give the country data one home
+git commit -F - <<'MSG'
+refactor(super-app): give the country data one home
 
-$(printf '%s' 'The array of 249 countries moves out of CountryInput, and the 242
-dial codes are lifted out of the doomed PhoneInput copy — minus `an`,
-whose country was dissolved in 2010.
+The array of 249 countries moves out of CountryInput, and the 242 dial
+codes are lifted out of the doomed PhoneInput copy — minus `an`, whose
+country was dissolved in 2010.
 
 `buildCountries` is deliberately free of React Native imports so it runs
-in the fast jest project, which is why the flag lookup is not here.')
+in the fast jest project, which is why the flag lookup is not here.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+MSG
 ```
+
+Use this `git commit -F - <<'MSG'` form for every commit in this plan — a quoted heredoc passes the message through literally, where `-m` with backticks and em dashes invites the shell to interpret it.
 
 ---
 
