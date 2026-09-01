@@ -1167,7 +1167,7 @@ The close control also needs a label. `Common` currently has `Back` but no `Clos
 "Common": { "Back": "Geri dön", "Close": "Kapat" }
 ```
 
-Copy each file's existing `Common.Back` value rather than the one shown here, and add only `Close`.
+**Add only the `Close` entry.** Leave each file's existing `Common.Back` value exactly as it already is — the `Back` values shown above are illustrative and may not match what is in the files. `Close` gets its own wording: `"Close"` in en-US, `"Kapat"` in tr-TR. Do **not** give `Close` the same value as `Back`; it labels a dismiss control, and a screen reader announcing "Go back" on it is the defect this key exists to avoid.
 
 - [ ] **Step 2: Regenerate the translation-key bundles**
 
