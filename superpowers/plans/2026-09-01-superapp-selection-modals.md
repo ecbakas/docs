@@ -19,7 +19,8 @@
 - **Use semantic colour tokens** (`text-foreground`, `bg-card`, `border-border`, …). Never `bg-white`, `text-white`, `bg-black`, `border-gray-*`, or raw hex. `src/components/ui/__tests__/tokens.test.ts` guards this and is *already red* from pre-existing violations — do not add to its list.
 - **Comment density: write far fewer comments than the surrounding files suggest.** Comment the non-obvious *why* only.
 - **Baselines**, measured on `d719a04` in Task 0, are the bar. Only `src/components/ui/__tests__/tokens.test.ts` may be red.
-- **Localization:** every new key goes into **both** `src/localization/resources/en-US.json` and `tr-TR.json`, then `npm run init` before `npm run typecheck`.
+- **Localization:** every new key goes into **both** `src/localization/resources/en-US.json` and `tr-TR.json`, then the generated bundle must be rebuilt before `npm run typecheck` — `TranslationKey` derives from the bundle, not from the resources.
+- **`npm run init` does not work right now.** It fetches `https://dev-api.unirefund.com`, which returns **502**. Rebuild the bundle offline instead, with `node .superpowers/sdd/2026-09-01-superapp-selection-modals/rebuild-language-data.mjs`, then confirm via `npm run check:language-data`. That script mirrors `init.ts:146-160` — it keeps the backend half of the bundle and rebuilds only the `MobileApp` half from the tracked resources, which is the only half any task here changes.
 
 ---
 
@@ -362,13 +363,15 @@ Expected: clean, 9 tests still pass.
 
 ```bash
 git add src/data/countries
-git commit -m "refactor(super-app): add the country flag lookup and its hook
+git commit -F - <<'MSG'
+refactor(super-app): add the country flag lookup and its hook
 
 Kept out of countries.ts on purpose: react-native-circle-flags resolves
 react-native-web, so any module importing it cannot load in the node
 jest project.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+MSG
 ```
 
 ---
@@ -597,13 +600,15 @@ Expected: the 5 new tests PASS, `Modal.router.test.tsx` still passes, typecheck 
 
 ```bash
 git add src/templates
-git commit -m "feat(super-app): add a list-shaped sibling to ModalTemplate
+git commit -F - <<'MSG'
+feat(super-app): add a list-shaped sibling to ModalTemplate
 
 Same full-bleed Dialog and the same context-derived insets, without the
 ScrollView — the callers are FlashLists, which fight an outer scroll
 view for every gesture.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+MSG
 ```
 
 ---
@@ -937,13 +942,15 @@ Expected: 9 tests PASS, typecheck clean.
 
 ```bash
 git add src/components/SelectionModal.tsx src/components/__tests__/SelectionModal.router.test.tsx
-git commit -m "feat(super-app): add the generic selection modal
+git commit -F - <<'MSG'
+feat(super-app): add the generic selection modal
 
 Owns the search field, the list, the row chrome and the checkmark. The
 caller keeps what is genuinely its own: the row's content and, where it
 has one, its error and retry.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+MSG
 ```
 
 ---
@@ -1098,14 +1105,16 @@ Expected: PASS, clean. If the mock at line 54 fails to resolve, the file was mov
 
 ```bash
 git add src/components/TenantInput/TenantSelectionModal.tsx
-git commit -m "fix(super-app): make the tenant picker's header reachable
+git commit -F - <<'MSG'
+fix(super-app): make the tenant picker's header reachable
 
 It drew its own frame around a native SafeAreaView, which inside a
 Dialog window pads by nothing — putting close and refresh under the
 status bar. On SelectionModal it inherits the fixed frame, and the back
 arrow replaces the close X.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+MSG
 ```
 
 ---
@@ -1376,13 +1385,15 @@ Expected: 5 tests PASS, typecheck clean.
 
 ```bash
 git add src/components/CountryPicker src/localization/resources
-git commit -m "feat(super-app): add one country picker for both callers
+git commit -F - <<'MSG'
+feat(super-app): add one country picker for both callers
 
 It reads its own data. The picker it replaces took countries as a prop
 and bailed to an empty list without one, which is exactly what both of
 its callers gave it.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+MSG
 ```
 
 ---
@@ -1504,7 +1515,8 @@ Expected: typecheck clean; `tokens.test.ts` the only red suite; no new lint warn
 
 ```bash
 git add -A src/components src/screens/traveller/Cards/_components/AddBankSheet.tsx
-git commit -m "fix(super-app): give the phone picker a list, and one dataset to both
+git commit -F - <<'MSG'
+fix(super-app): give the phone picker a list, and one dataset to both
 
 The phone country picker rendered an empty list behind an unreachable
 close button: it bailed to [] without a countries prop, and neither
@@ -1512,7 +1524,8 @@ EditProfileScreen nor DiditScreen passed one. Both country pickers now
 share CountryPickerModal and one dataset, which drops a 297KB JSON whose
 languages map nothing imported.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+MSG
 ```
 
 ---
@@ -1663,12 +1676,14 @@ Expected: clean; the login suite still passes.
 
 ```bash
 git add src/components/ui src/components/TenantInput src/components/CountryInput
-git commit -m "refactor(super-app): give the two select fields one trigger
+git commit -F - <<'MSG'
+refactor(super-app): give the two select fields one trigger
 
 Both rendered a byte-identical pressable. Folding them together also
 retires the hardcoded English 'Select a Country' placeholder.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+MSG
 ```
 
 ---
