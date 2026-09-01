@@ -1171,11 +1171,16 @@ Copy each file's existing `Common.Back` value rather than the one shown here, an
 
 - [ ] **Step 2: Regenerate the translation-key bundles**
 
+`npm run init` is the normal command, but it **cannot run** — it fetches `https://dev-api.unirefund.com`, which returns 502. Use the offline rebuild instead:
+
 ```bash
-npm run init
+node .superpowers/sdd/2026-09-01-superapp-selection-modals/rebuild-language-data.mjs
+npm run check:language-data
 ```
 
-Without this, `tsc` rejects both new `t()` calls — `TranslationKey` is derived from the gitignored generated bundles, not from these resource files.
+The rebuild mirrors `init.ts:146-160`: it keeps the bundle's backend-sourced half and rebuilds only the `MobileApp` half from the tracked resources, which is the only half this task changes. `check:language-data` must print "Generated data is up to date" — it reads local files only and never contacts the backend.
+
+Without this, `tsc` rejects the new `t()` calls — `TranslationKey` is derived from the gitignored generated bundles, not from the resource files you just edited. **This step is the first real exercise of the offline rebuild against changed resources; if `check:language-data` reports a stale bundle, stop and report rather than working around it.**
 
 - [ ] **Step 3: Write the failing test**
 
