@@ -696,7 +696,7 @@ git commit -m "feat(app-config): normalize the ABP payload onto one contract"
 
 **Interfaces:**
 - Consumes: `normalizeApplicationConfiguration`, `EMPTY_APPLICATION_CONFIGURATION`, `ApplicationConfiguration` from Task 2.
-- Produces: `getApplicationConfiguration(): Promise<ApplicationConfiguration>` — request-scoped cached. `getGrantedPoliciesApi()` keeps its existing signature and return type (`Policies | undefined`).
+- Produces: `getApplicationConfiguration(): Promise<ApplicationConfiguration>` — request-scoped cached, and it MUST NOT reject: every failure path resolves to `EMPTY_APPLICATION_CONFIGURATION`. `getGrantedPoliciesApi()` keeps its existing parameter list and stays callable by all ~10 existing callers; its return type narrows from `Policies | undefined` to `Promise<Policies>`, because the fail-closed default is now `{}` rather than `undefined`. That narrowing is deliberate and safe — no caller does a strict `undefined`/truthiness check on the object (all use optional chaining or `isActionGranted`), and `policies.json`, the client-side default, is all-`false`, so `{}` and the old `undefined`-triggers-default path are behaviourally identical.
 
 - [ ] **Step 1: Write `fetch.ts`**
 
@@ -724,31 +724,43 @@ import {
  * The two requests are independent: `Promise.allSettled` means a country
  * lookup failure leaves policies intact, and an application-configuration
  * failure still fails closed with an empty policy map.
+ *
+ * The outer try/catch is what makes "fail closed" total rather than
+ * network-only. `auth()` throws on a corrupt or expired session cookie and on
+ * signing-key rotation, and client construction can throw too — both outside
+ * the `allSettled`. Without the catch, this `cache()`-memoized promise rejects
+ * and every consumer in the request inherits the rejection, because neither
+ * `getGrantedPoliciesApi` nor `isUnauthorized` catches. The code this replaced
+ * wrapped its whole body, so it denied access where this would crash.
  */
 export const getApplicationConfiguration = cache(
   async (): Promise<ApplicationConfiguration> => {
-    const session = await auth();
-    if (!session) return EMPTY_APPLICATION_CONFIGURATION;
+    try {
+      const session = await auth();
+      if (!session) return EMPTY_APPLICATION_CONFIGURATION;
 
-    const client = await getAccountServiceClient(session.user?.access_token);
+      const client = await getAccountServiceClient(session.user?.access_token);
 
-    const [configResult, countryResult] = await Promise.allSettled([
-      // `includeLocalizationResources: false` keeps this at 19 KB / ~225 ms
-      // instead of 397 KB / ~900 ms, on every render of the (main) layout.
-      client.abpApplicationConfiguration.getApiAbpApplicationConfiguration({
-        includeLocalizationResources: false,
-      }),
-      getCountryInfo(session.user?.access_token),
-    ]);
+      const [configResult, countryResult] = await Promise.allSettled([
+        // `includeLocalizationResources: false` keeps this at 19 KB / ~225 ms
+        // instead of 397 KB / ~900 ms, on every render of the (main) layout.
+        client.abpApplicationConfiguration.getApiAbpApplicationConfiguration({
+          includeLocalizationResources: false,
+        }),
+        getCountryInfo(session.user?.access_token),
+      ]);
 
-    if (configResult.status === "rejected") {
+      if (configResult.status === "rejected") {
+        return EMPTY_APPLICATION_CONFIGURATION;
+      }
+
+      return normalizeApplicationConfiguration(
+        configResult.value,
+        countryResult.status === "fulfilled" ? countryResult.value : undefined,
+      );
+    } catch {
       return EMPTY_APPLICATION_CONFIGURATION;
     }
-
-    return normalizeApplicationConfiguration(
-      configResult.value,
-      countryResult.status === "fulfilled" ? countryResult.value : undefined,
-    );
   },
 );
 ```
