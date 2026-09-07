@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make one cached `/api/abp/application-configuration` fetch the single source for permissions, user, tenant and settings in web-app, collapsing the duplicate calls within a render to one: 2 requests down to 1 on a typical route, 11 down to 1 on the worst.
+**Goal:** Make one cached `/api/abp/application-configuration` fetch the single source for permissions, user, tenant and settings in web-app, collapsing every duplicate call within a render to one. The magnitude is unmeasured — see Task 6 Step 4; two earlier static estimates were both wrong.
 
 **Architecture:** A pure logic layer (types, keys, parsers, normalizer) in `packages/utils/app-config/`, a request-cached server fetch that composes application-configuration with one `country-settings/info` call, and a client provider. The existing `useTenant` and `useGrantedPolicies` hooks become adapters over it, so no consumer call site changes.
 
@@ -733,7 +733,7 @@ import {
  * `cache()` is load-bearing, not an optimisation. Of 135 `isUnauthorized(...)`
  * call sites only 8 pass `grantedPolicies`; the rest each triggered their own
  * 19 KB / ~225 ms round-trip on top of the layout's. Without the cache this is
- * a typical route issues 2 of these per render; the worst route issues 11.
+ * the count per render is unmeasured; each uncached fall-through issued its own.
  *
  * The two requests are independent: `Promise.allSettled` means a country
  * lookup failure leaves policies intact, and an application-configuration
@@ -1178,7 +1178,7 @@ Start the app, sign in, open a `(main)` page with a permission guard, and count 
 
 Run: `cd web-app && pnpm dev`
 
-Expected: exactly one `application-configuration` request and one `country-settings/info` request per page navigation. Before this change a typical route issued 2 and `operations/tax-free-tags/[tagId]` issued 11.
+Expected: exactly one `application-configuration` request and one `country-settings/info` request per page navigation. The before-count is genuinely unknown: two static estimates (~128, then 2/11) were both wrong, because `isUnauthorized` short-circuits when a caller passes an already-resolved `grantedPolicies` and several pages do exactly that.
 
 **Do not skip this step.** It is the only end-to-end measurement of the branch's headline claim — every other gate is static and cannot observe a request count. It is also the step that would have caught the original, wrong "~128 per render" figure. Record the observed before/after counts in the commit body.
 

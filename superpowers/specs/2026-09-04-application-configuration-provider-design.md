@@ -20,7 +20,7 @@ repeatedly with most of its payload discarded.
   one field.
 - **pos-app** — the same shape as super-app, minus `getCountrySettingsValues`.
 
-Two measured consequences:
+Two consequences:
 
 1. **web-app repeats the same application-configuration call within a single
    render.** `getGrantedPoliciesApi` is not wrapped in React `cache()`. Of 135
@@ -28,14 +28,22 @@ Two measured consequences:
    fall through to `initalGrantedPolicies || (await getGrantedPoliciesApi())`.
    Each is ~19 KB / ~225 ms, on top of the `(main)` layout's own call.
 
-   Counted per render rather than per repository: Next renders one page plus
-   its layout chain, 126 of those files contain a single call, and the
-   `[lang]` and `(main)` layouts contribute none of their own. So a typical
-   route makes **2** such requests, and the worst route —
-   `operations/tax-free-tags/[tagId]/page.tsx`, with 9 of its own — makes
-   **11**. An earlier revision of this spec claimed ~128 per render; that
-   conflated repo-wide call sites with per-render executions, and is
-   corrected here.
+   **The per-render request count is unmeasured. Do not quote one.** Two
+   successive estimates in earlier revisions of this spec were both wrong:
+   first ~128, which simply counted repository-wide call sites; then a
+   per-route figure of 2 typical / 11 worst, which still assumed each call
+   site triggers a fetch. It does not — `isUnauthorized` short-circuits on
+   `initalGrantedPolicies ?? (await …)`, and pages such as
+   `operations/tax-free-tags/[tagId]/page.tsx` resolve `grantedPolicies` once
+   and hand the same value to eight further call sites. Counting call sites
+   cannot predict request counts when call sites pass resolved values to each
+   other.
+
+   What is certain, and sufficient to justify the change: the pre-existing
+   `getGrantedPoliciesApi` was uncached, so every fall-through issued its own
+   ~19 KB / ~225 ms round-trip, and `cache()` collapses all of them within a
+   render to one by construction. Anyone wanting the magnitude must observe it
+   in a browser — see plan 1, Task 6, Step 4, the only step that does.
 2. **super-app and pos-app each spend two round-trips on two fields** of one
    response, then fetch country settings separately.
 
@@ -280,7 +288,7 @@ its own.
 
 | | Before | After |
 | --- | --- | --- |
-| web-app calls per page render | 2 typical, 11 worst route | 1, cached (plus 1 country-settings) |
+| web-app application-configuration calls per render | unmeasured; every uncached fall-through issued its own | 1, cached (plus 1 country-settings) |
 | super-app calls per auth path | 4 | 2 |
 | pos-app calls per auth path | 3 | 2 |
 | super-app grant dependencies | requires `UniRefund.Settings.GetValues` | dropped |
