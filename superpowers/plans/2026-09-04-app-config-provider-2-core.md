@@ -351,7 +351,7 @@ git commit -m "feat(app-config): add pure types, keys and setting parsers"
 - Create: `core/src/config/isHostTenant.ts`
 - Create: `core/src/config/normalizeApplicationConfiguration.ts`
 - Test: `core/src/config/__tests__/normalizeApplicationConfiguration.test.ts`
-- Test fixture: `core/src/config/__tests__/applicationConfiguration.fixture.ts`
+- Test fixture: `core/src/config/__fixtures__/applicationConfiguration.fixture.ts`
 
 **Interfaces:**
 - Consumes: types from Task 1.
@@ -361,7 +361,7 @@ git commit -m "feat(app-config): add pure types, keys and setting parsers"
 
 Trimmed from a live authenticated staff session on 2026-09-04, tenant "Faroe Islands". GUIDs and the email are redacted; every key name and value shape is verbatim.
 
-Create `src/config/__tests__/applicationConfiguration.fixture.ts`:
+Create `src/config/__fixtures__/applicationConfiguration.fixture.ts`:
 
 ```ts
 import type { RawApplicationConfiguration } from "../appConfigTypes";
@@ -427,7 +427,7 @@ import {
   EMPTY_APPLICATION_CONFIGURATION,
   normalizeApplicationConfiguration,
 } from "../normalizeApplicationConfiguration";
-import { applicationConfigurationFixture } from "./applicationConfiguration.fixture";
+import { applicationConfigurationFixture } from "../__fixtures__/applicationConfiguration.fixture";
 
 const country = {
   tenantId: "00000000-0000-0000-0000-000000tenant",

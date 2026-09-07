@@ -334,8 +334,51 @@ The two requests fail independently.
   has a client-visible setting today.
 - **Localization resources.** `includeLocalizationResources: false` stays; it
   is the difference between 19 KB / ~225 ms and 397 KB / ~900 ms.
-- **Migrating the ~400 existing consumers.** They keep working through
-  adapters.
+- ~~**Migrating the ~400 existing consumers.** They keep working through
+  adapters.~~ **No longer out of scope — reversed by the user on 2026-09-07.**
+  The adapters were always a migration aid rather than an end state, and the
+  user has asked for the deprecated providers to go. So web-app's ~267
+  consumers move onto `useApplicationConfiguration()` directly and
+  `useTenant` / `useGrantedPolicies` are deleted, along with the no-op
+  `GrantedPoliciesProvider` and the two `@deprecated` props.
+
+  This is deliberately a **separate branch and PR**, stacked on
+  `feat/app-config-provider` rather than amending it: the provider work is
+  reviewable at ~20 files and the migration is ~270 mechanical ones, and
+  mixing them would make both harder to review. See plan 5.
+
+  Two facts shape how it must be done. `useTenant`'s 122 call sites are not
+  uniform — 117 destructure only `localization`, and the rest read
+  `countryCode2`, `formatToTenantDate`, `tenantName`, `tenantId` or
+  `currency` — so the replacement is not a single find-and-replace.
+  And **neither hook is reachable by any test in this repo** (the only unit
+  gate is `.ts`-only and cannot execute JSX), so `tsc` plus a production
+  build of both apps are the entire safety net; the migration must lean on
+  them deliberately rather than incidentally.
+
+  `TenantProvider` itself cannot simply be deleted: it owns the `lang`
+  context that supplies `localization.lang`, and two `localStorage` writes
+  (`countryCode2`, `tenantTimeZone`) that `packages/ui`'s address combobox
+  and `packages/ayasofyazilim-ui`'s date picker read. Whatever replaces it
+  has to keep both jobs.
+
+  **Also in plan 5's scope, and unrelated to app-config:
+  `MasterDataGridResourcesProvider` should be unmounted.** Measured
+  2026-09-07: 98 files render `<MasterDataGrid>`, and all 98 supply their own
+  translations — 97 via a `t:` key inside `config`, one via a `t={` prop. The
+  component resolves `const t = tProp ?? contextResources`
+  (`master-data-grid.tsx:80`), so `tProp` is always defined and the
+  provider's context is shadowed at every call site; its fallback path is
+  never exercised. It is mounted only in `apps/web/src/providers/providers.tsx`
+  and never in ssr, so unmounting is a one-file change. Leave the provider and
+  hook in place inside `packages/ayasofyazilim-ui` — that is a submodule, it
+  is library API, and nothing requires touching it. `languageData` stays
+  needed by `ErrorComponent`.
+
+  Verify per-file before deleting the mount rather than trusting the count: a
+  grid that genuinely relied on the context would lose its column, filter,
+  pagination and row-count labels **silently**, because `t` is optional and no
+  test in the repo reaches any of these files.
 
 ## Parallel backend ask
 

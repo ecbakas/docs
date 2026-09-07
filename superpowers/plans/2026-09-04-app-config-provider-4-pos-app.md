@@ -44,7 +44,7 @@ Keeping the file paths and symbol names byte-identical to core is what preserves
 - Test: `pos-app/src/config/__tests__/appConfigParse.test.ts`
 - Test: `pos-app/src/config/__tests__/appConfigKeys.test.ts`
 - Test: `pos-app/src/config/__tests__/normalizeApplicationConfiguration.test.ts`
-- Test fixture: `pos-app/src/config/__tests__/applicationConfiguration.fixture.ts`
+- Test fixture: `pos-app/src/config/__fixtures__/applicationConfiguration.fixture.ts`
 
 **Interfaces:**
 - Consumes: nothing.
@@ -76,6 +76,8 @@ cp core/src/config/isHostTenant.ts pos-app/src/config/
 cp core/src/config/normalizeApplicationConfiguration.ts pos-app/src/config/
 mkdir -p pos-app/src/config/__tests__
 cp core/src/config/__tests__/*.ts pos-app/src/config/__tests__/
+mkdir -p pos-app/src/config/__fixtures__
+cp core/src/config/__fixtures__/*.ts pos-app/src/config/__fixtures__/
 ```
 
 If `core` is not checked out alongside, reproduce them from Plan 2 Tasks 1 and 2 rather than writing variants — the key-string test in each repo exists precisely to catch divergence.
