@@ -37,16 +37,40 @@ One app only: `apps/web`. No `apps/ssr`.
 
 ## The finding that changes the work
 
-**`TenantProvider` here serves hardcoded tenant data.**
+**`TenantProvider` here serves hardcoded tenant data, and that is deliberate.**
 `apps/web/src/providers/tenant.tsx` defines a `defaultTenantData` literal —
 tenant GUID `df64152b-9f76-e06b-d43f-3a1bd9644ea9`, `tenantName: "Türkiye"`,
 `timeZone: "Europe/Istanbul"`, `currency: "TRY"`, `countryCode2: "TR"` — and
 never fetches anything. All 18 consumers read that constant, and the two
 `localStorage` writes persist the hardcoded values.
 
-So in this repo the change is not a refactor but **replacing a placeholder with
-real data**. It adds no new backend dependency: `providers.tsx:16` already
-calls `getGrantedPoliciesApi()`, so a working gateway is already required.
+**Confirmed by the user 2026-09-07: this repo has no real backend, which is why
+the data is hardcoded.** An earlier revision of this document called the change
+"replacing a placeholder with real data" — that was wrong and would have made
+the template worse. With no gateway, `getApplicationConfiguration()` resolves
+to `EMPTY_APPLICATION_CONFIGURATION`, so the app would render `USD` / `UTC` /
+null country fields and an empty policy map where it currently renders coherent
+placeholders.
+
+### What that means for plan 6
+
+The **required** part is the compatibility migration, not the data source. Plan
+5 deletes `useGrantedPolicies` and `GrantedPoliciesProvider` from the shared
+`web-utils` submodule, so this repo's 18 consumers must move off them or they
+break at the next pointer bump.
+
+The **placeholder data stays.** Express it as an `ApplicationConfiguration`
+constant handed to `ApplicationConfigurationProvider`, so the template adopts
+the target architecture and keeps working with no backend. Document the
+`await getApplicationConfiguration()` call as the one-line swap-in for a repo
+that does have a gateway — that seam is the useful thing for a template to
+show, and it keeps this repo honest about not having one.
+
+Do NOT introduce a live configuration fetch here. Note that
+`providers.tsx:16`'s existing `getGrantedPoliciesApi()` call already fails
+against no backend and falls back to `policies.json` (all `false`); the
+placeholder configuration should keep policies fail-closed the same way rather
+than inventing grants.
 
 ## Divergence needing a decision
 

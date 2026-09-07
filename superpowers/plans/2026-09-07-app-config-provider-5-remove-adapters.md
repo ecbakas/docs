@@ -36,7 +36,14 @@
 
 ---
 
-### Task 1: `useLocalization` and the `lang`-aware provider
+### Task 1: `useLocalization`, the `lang`-aware provider, AND both mount sites
+
+> **Tasks 1 and 2 were originally separate and must NOT be split.** Making `lang`
+> a required prop without wiring it leaves both apps with a type error at their
+> sole mount site, so the intermediate does not compile and its review can
+> verify no gate. Do the provider change and the two mount-site edits in one
+> task, as two commits if you like. Task 2 below is retained only as the
+> mount-site detail.
 
 **Files:**
 - Create: `packages/utils/app-config/localization.ts`
