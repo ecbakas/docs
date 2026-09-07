@@ -65,6 +65,8 @@ const settings: Record<string, string | null> = {
   "Abp.Identity.Password.RequiredLength": "6",
   "Abp.Identity.OAuthLogin.Scope": null,
   "Broken.Number": "not-a-number",
+  "Empty.Number": "",
+  "Whitespace.Number": "   ",
   "Shouty.Boolean": "FALSE",
 };
 
@@ -138,6 +140,19 @@ void describe("getNumberSetting", () => {
 
   void it("returns the fallback for a missing key", () => {
     assert.equal(getNumberSetting(settings, "Nope.Missing", 8), 8);
+  });
+
+  // These two are the point of the trim/empty guard. `Number("")` and
+  // `Number("   ")` are both 0, not NaN, so a NaN-only guard returns 0 —
+  // silently turning a blank password-policy setting into RequiredLength: 0.
+  // The "Broken.Number" case above passes against BOTH the correct and the
+  // buggy implementation, so without these the guard is undefended.
+  void it("returns the fallback for an empty string, which Number() reads as 0", () => {
+    assert.equal(getNumberSetting(settings, "Empty.Number", 8), 8);
+  });
+
+  void it("returns the fallback for a whitespace-only value", () => {
+    assert.equal(getNumberSetting(settings, "Whitespace.Number", 8), 8);
   });
 });
 ```
