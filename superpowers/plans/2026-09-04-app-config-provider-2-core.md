@@ -613,16 +613,23 @@ export function normalizeApplicationConfiguration(
       isHost: isHostTenant(tenantId),
     },
     country: {
-      currency: countryInfo?.currency ?? DEFAULT_CURRENCY,
+      // `||`, not `??`: the backend can send an empty string, and `??` would
+      // pass it through. See the time zone below for why that matters.
+      currency: countryInfo?.currency || DEFAULT_CURRENCY,
       countryCode2: countryInfo?.countryCode2 ?? null,
       countryCode3: countryInfo?.countryCode3 ?? null,
       countryName: countryInfo?.countryName ?? null,
     },
     // The IANA zone. `setting.values["Abp.Timing.TimeZone"]` is a Windows id
     // and `Intl.DateTimeFormat` throws on it.
+    //
+    // `||` rather than `??` is load-bearing: an empty string survives `??`,
+    // and this value reaches `Intl.DateTimeFormat`, which throws
+    // `RangeError: Invalid time zone specified:` on `""`. Neither field has a
+    // meaningful falsy value, so coercing them costs nothing.
     timeZone:
-      raw.timing?.timeZone?.iana?.timeZoneName ??
-      countryInfo?.timeZone ??
+      raw.timing?.timeZone?.iana?.timeZoneName ||
+      countryInfo?.timeZone ||
       DEFAULT_TIME_ZONE,
     policies: (raw.auth?.grantedPolicies ?? {}) as Record<string, boolean>,
     settings: raw.setting?.values ?? {},
