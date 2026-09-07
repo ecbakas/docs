@@ -310,16 +310,36 @@ These need judgement, so they are their own task rather than part of the batch.
 
 - [ ] **Step 1: Map each field to its replacement**
 
+**Call-site shape — user preference, 2026-09-07.** Do NOT use chained access like
+`useApplicationConfiguration().tenant.id`; it reads badly at a call site. Two flat
+accessor hooks live beside `useLocalization` in `packages/utils/app-config/provider.tsx`:
+
+- `useTenantInfo()` → `{ tenantId, tenantName, isHost, isAvailable }`
+- `useCountryInfo()` → `{ currency, countryCode2, countryCode3, countryName }`
+
+The shared nested contract is deliberately unchanged. Flattening it would have
+re-opened the spec, `web-utils#48`, `core-mobile#22` (whose earlier commits are
+already on core's `main`), and plans 3/4/6 — invalidating reviewed work across
+four repos to change an access shape.
+
 | Old | New |
 | --- | --- |
-| `localization` | `useLocalization()` |
-| `countryCode2` | `useApplicationConfiguration().country.countryCode2 ?? ""` |
-| `currency` | `useApplicationConfiguration().country.currency` |
-| `tenantId` | `useApplicationConfiguration().tenant.id ?? ""` |
-| `tenantName` | `useApplicationConfiguration().tenant.name ?? ""` |
+| `localization` | `const localization = useLocalization();` |
+| `countryCode2` | `const { countryCode2 } = useCountryInfo();` |
+| `currency` | `const { currency } = useCountryInfo();` |
+| `tenantId` | `const { tenantId } = useTenantInfo();` |
+| `tenantName` | `const { tenantName } = useTenantInfo();` |
 | `formatToTenantDate` | see Step 2 |
 
-The `?? ""` preserves `useTenant`'s behaviour exactly — it normalised nulls to empty strings, and consumers may rely on that.
+Where a file reads two fields from one group, destructure both from a single call
+rather than calling the hook twice.
+
+**The hooks own the `?? ""` normalization**, which preserves `useTenant`'s
+behaviour exactly — it normalised nulls to empty strings and consumers may rely on
+that. Keeping the coalesce inside the hooks means it lives in one place instead of
+being repeated at 13 call sites where it could be forgotten. `currency`
+deliberately has no coalesce: the contract types it as a non-nullable string with
+a default.
 
 - [ ] **Step 2: Move `formatToTenantDate` / `formatToTimezoneDate` into the submodule**
 
