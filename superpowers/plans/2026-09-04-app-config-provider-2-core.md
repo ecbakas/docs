@@ -285,13 +285,19 @@ export function getBooleanSetting(
   return fallback;
 }
 
+/**
+ * Trims and rejects empty input before parsing. Both matter: `Number("")` and
+ * `Number("   ")` are `0`, not `NaN`, so a `NaN`-only guard silently turns a
+ * blank setting into `0` — which for the numeric password-policy keys would
+ * mean `RequiredLength: 0`.
+ */
 export function getNumberSetting(
   values: Values,
   key: string,
   fallback: number,
 ): number {
-  const raw = values[key];
-  if (raw === null || raw === undefined) return fallback;
+  const raw = values[key]?.trim();
+  if (!raw) return fallback;
   const parsed = Number(raw);
   return Number.isNaN(parsed) ? fallback : parsed;
 }

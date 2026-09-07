@@ -22,11 +22,20 @@ repeatedly with most of its payload discarded.
 
 Two measured consequences:
 
-1. **web-app issues roughly 128 application-configuration calls per page
+1. **web-app repeats the same application-configuration call within a single
    render.** `getGrantedPoliciesApi` is not wrapped in React `cache()`. Of 135
    `isUnauthorized(...)` call sites, 8 pass `grantedPolicies`; the other 127
    fall through to `initalGrantedPolicies || (await getGrantedPoliciesApi())`.
    Each is ~19 KB / ~225 ms, on top of the `(main)` layout's own call.
+
+   Counted per render rather than per repository: Next renders one page plus
+   its layout chain, 126 of those files contain a single call, and the
+   `[lang]` and `(main)` layouts contribute none of their own. So a typical
+   route makes **2** such requests, and the worst route —
+   `operations/tax-free-tags/[tagId]/page.tsx`, with 9 of its own — makes
+   **11**. An earlier revision of this spec claimed ~128 per render; that
+   conflated repo-wide call sites with per-render executions, and is
+   corrected here.
 2. **super-app and pos-app each spend two round-trips on two fields** of one
    response, then fetch country settings separately.
 
@@ -148,8 +157,14 @@ getBooleanFeature(key: string, fallback?: boolean): boolean
 ```
 
 `getBooleanSetting` lowercases before comparing, and returns `fallback` for
-`null`, `undefined` and any unparseable value. `getNumberSetting` returns
-`fallback` for `NaN`.
+`null`, `undefined` and any unparseable value.
+
+`getNumberSetting` trims first and returns `fallback` for `null`, `undefined`,
+the empty string and any whitespace-only value, then for `NaN`. Trimming and
+the empty check are load-bearing rather than tidiness: `Number("") === 0` and
+`Number("   ") === 0`, so a `NaN`-only guard silently yields `0`. With the
+numeric password-policy keys below as the intended consumers, that would turn
+a missing setting into `RequiredLength: 0`.
 
 ### Normalizer
 
@@ -207,8 +222,14 @@ New `packages/utils/app-config/`:
 - `keys.ts`, `parse.ts`, `normalize.ts`, `types.ts` — pure, free of server
   imports, following the precedent set by `is-host-tenant.ts` so client and
   server can share them.
-- `action.ts` — `getApplicationConfigurationApi()`: both requests via
-  `Promise.allSettled`, wrapped in React `cache()`.
+- `fetch.ts` — `getApplicationConfiguration()`: both requests via
+  `Promise.allSettled`, wrapped in React `cache()`, and wrapped in an outer
+  try/catch so it resolves to the empty configuration rather than rejecting.
+  Named `fetch.ts` and NOT `action.ts` deliberately: an `action.ts` in this
+  package carries `"use server"`, which would publish the whole configuration
+  — including `currentUser`'s email and session id — as a client-callable RPC
+  endpoint. The RN implementations keep the `…Api()` name since they have no
+  such boundary.
 - `provider.tsx` — `ApplicationConfigurationProvider` and
   `useApplicationConfiguration()`.
 
@@ -259,7 +280,7 @@ its own.
 
 | | Before | After |
 | --- | --- | --- |
-| web-app calls per page render | ~128 | 2, both cached |
+| web-app calls per page render | 2 typical, 11 worst route | 1, cached (plus 1 country-settings) |
 | super-app calls per auth path | 4 | 2 |
 | pos-app calls per auth path | 3 | 2 |
 | super-app grant dependencies | requires `UniRefund.Settings.GetValues` | dropped |
