@@ -744,10 +744,56 @@ describe("useApplicationConfigurationStore", () => {
           configuration: populated,
         }) as Record<string, unknown>)
       : {};
+    // Assert the TOP-LEVEL shape too, not just the nested object. Without
+    // this, a future edit adding `isLoaded: state.isLoaded` alongside
+    // `configuration` would pass — and `isLoaded` persisting is exactly what
+    // would let a stale country block masquerade as a completed fetch.
+    expect(Object.keys(persisted).sort()).toEqual(["configuration"]);
+
     const config = (persisted as { configuration?: Record<string, unknown> })
       .configuration;
     expect(config).toBeDefined();
     expect(Object.keys(config ?? {}).sort()).toEqual(["country", "settings"]);
+  });
+
+  it("rehydrates only country and settings, leaving session-scoped fields in memory", () => {
+    // `merge` is the other half of the persistence contract and the actual
+    // cold-start path: AsyncStorage holds only country+settings, and
+    // everything session-scoped must come from fresh in-memory state. Reach
+    // it through `persist.getOptions()` so this exercises the function the
+    // store was configured with, not a copy.
+    const merge = useApplicationConfigurationStore.persist.getOptions().merge;
+    expect(merge).toBeDefined();
+
+    const current = {
+      ...useApplicationConfigurationStore.getState(),
+      configuration: populated,
+      isLoaded: true,
+    };
+    const merged = merge!(
+      {
+        configuration: {
+          country: {
+            currency: "EUR",
+            countryCode2: "IE",
+            countryCode3: "IRL",
+            countryName: "Ireland",
+          },
+          settings: { "Some.Persisted.Key": "yes" },
+        },
+      },
+      current,
+    ) as typeof current;
+
+    // From the persisted blob.
+    expect(merged.configuration.country.currency).toBe("EUR");
+    expect(merged.configuration.settings["Some.Persisted.Key"]).toBe("yes");
+    // From memory — the persisted blob carries none of these, and a naive
+    // spread of it over `current` would wipe them.
+    expect(merged.configuration.policies).toEqual(populated.policies);
+    expect(merged.configuration.user).toEqual(populated.user);
+    expect(merged.configuration.tenant).toEqual(populated.tenant);
+    expect(merged.isLoaded).toBe(true);
   });
 });
 ```
