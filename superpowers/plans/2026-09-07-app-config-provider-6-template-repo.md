@@ -449,6 +449,22 @@ import {
 } from "@repo/utils/app-config";
 ```
 
+3. **Merge every duplicated `@repo/utils/app-config` import.** Task 1 added `useApplicationConfiguration` to a set of files and Task 2 then added `useLocalization` to some of the same ones as a *second* statement from the same module. The Task 2 review counted 7 such files, but **do not work from that number or from a copied list** — find them mechanically, because a stale hand-copied list is what caused this defect in the first place:
+
+```bash
+grep -rc "^import .*from \"@repo/utils/app-config\";" apps/web/src --include=*.tsx | grep -v ":[01]$"
+```
+
+Every file that reports 2 or more gets its statements merged into one, specifiers alphabetical within the braces:
+
+```tsx
+import { useApplicationConfiguration, useLocalization } from "@repo/utils/app-config";
+```
+
+Leave a `import type { ... }` from the same path as its own statement — a type-only import is deliberately separate. Re-run the grep afterwards; it must return nothing.
+
+Do **not** enable an `import/no-duplicates` lint rule to catch this: it would surface pre-existing warnings repo-wide and move the 37-warning baseline.
+
 - [ ] **Step 5: Verify**
 
 Symbol-based and path-based, since neither alone is sufficient — a type-only import is invisible to a symbol grep, and an aliased path is invisible to a canonical-path grep:
