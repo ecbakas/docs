@@ -287,7 +287,7 @@ git commit -m "refactor(app-config): retire the country-settings store and its v
 
 ---
 
-### Task 3: Mount the provider
+### Task 3: Verify the provider mount, and close the jest blind spot
 
 **Files:**
 - Modify: `super-app/src/app/_layout.tsx`
@@ -304,26 +304,65 @@ git commit -m "refactor(app-config): retire the country-settings store and its v
 sed -n '80,120p' super-app/src/app/_layout.tsx
 ```
 
-- [ ] **Step 2: Mount it**
+- [ ] **Step 2: Verify the mount — do NOT add one**
 
-`ApplicationConfigurationProvider` goes **inside** `SessionProvider` (it needs a token) and **above** anything reading configuration.
+**Task 1's merge already mounted it,** and its placement was reviewed and confirmed correct. This step verifies rather than inserts; adding a second provider would be a defect.
 
-Two ordering hazards already burned this app and both still apply:
+Confirm all three:
 
-- `BottomSheetModalProvider` must sit above `ToastProvider`, because `ToastHost` renders a `BottomSheetModal`. Do not disturb that ordering while inserting.
-- Hooks called inside a `<BottomSheet>` child lose context. If a sheet needs configuration, call the hook in the sheet **host** and pass values down as props.
+```bash
+grep -n "ApplicationConfigurationProvider" src/app/_layout.tsx
+git diff -w 24528fe^ 24528fe -- src/app/_layout.tsx
+```
 
-- [ ] **Step 3: Type-check**
+1. Exactly **one** mount, inside `SessionProvider`, wrapping `LocalizationProvider`.
+2. The `_layout.tsx` diff introduced by the merge is **three lines** — the import, the opening tag, the closing tag. Nothing inside the toast/sheet chain moved.
+3. `ToastProvider` → `BottomSheetModalProvider` → `ToastHost` are in their original relative order.
+
+Two ordering hazards have already burned this app and both still apply — if any of the three checks fails, that is what you are protecting against:
+
+- `BottomSheetModalProvider` must sit above the toast host, because `ToastHost` renders a `BottomSheetModal`.
+- Hooks called inside a `<BottomSheet>` child lose context: `useToast()` throws and `useLocalization()` fails *silently*, rendering raw i18n keys.
+
+- [ ] **Step 3: Close the jest blind spot — one attempt**
+
+`src/app/__tests__/providerOrder.router.test.tsx` currently mocks `ApplicationConfigurationProvider` as a **pass-through**, so the suite proves tree *shape* but never that the real provider mounts. That is the only place in jest where a boot failure could surface, and this repo's ordering bugs are exactly boot failures.
+
+The mock exists because `src/utils/environment.ts` runs `extractApexDomain(env.gatewayDomain)` at module evaluation, and the suite stubs `@/config/env` down to `{ assertEnv }`. Extend that stub so the real provider can mount:
+
+```ts
+jest.mock("@/config/env", () => ({
+  assertEnv: () => {},
+  env: { gatewayDomain: "example.com" },
+}));
+```
+
+then delete the pass-through mock and run the suite.
+
+**Make one honest attempt.** If it works, the suite now exercises the real provider — say so. If it fails, restore the mock, and record in your report the exact error and why it defeats the approach. Do not spend more than one attempt, and do not weaken any existing assertion to make it pass — the suite's negative controls are load-bearing.
+
+- [ ] **Step 4: Type-check and test**
 
 Run: `cd super-app && npm run typecheck`
 Expected: clean.
 
-- [ ] **Step 4: Commit**
+Run the layout suite specifically, plus the full suite:
+
+```bash
+npx jest src/app/__tests__/providerOrder.router.test.tsx
+npm test
+```
+
+Expected: no new deterministic failures beyond `tokens.test.ts`.
+
+- [ ] **Step 5: Commit**
+
+Only if Step 3 changed something. If the mount was already correct and the un-mocking attempt failed, this task produces **no commit** — say so plainly rather than inventing one.
 
 ```bash
 cd super-app
 git add src/app
-git commit -m "feat(app-config): mount ApplicationConfigurationProvider"
+git commit -m "test(app-config): mount the real configuration provider in the layout suite"
 ```
 
 ---
