@@ -5,6 +5,9 @@
 is zero.
 **Follows:** [2026-09-08-web-app-server-filters-design.md](2026-09-08-web-app-server-filters-design.md),
 which took `serverFilters` coverage from 21 grids to 53 and 188 filters.
+**Approved visual reference:** <https://claude.ai/code/artifact/8bf0b8ff-bf9c-4c6e-ac91-d8c2bf978b98>
+— an interactive mockup at the repo's own tokens, signed off 2026-09-08. Where
+this document and the mockup disagree about appearance, the mockup is the intent.
 
 ## Problem
 
