@@ -21,7 +21,7 @@ This repo's 18 `useGrantedPolicies` consumers import from `@repo/utils/policies`
 - **The hardcoded placeholder data stays.** This repo has no backend (confirmed by the user 2026-09-07). Do NOT introduce a live tenant or country fetch, and do NOT let the app fall back to `USD` / `UTC` / null country fields.
 - **Policies stay fail-closed.** With no gateway, `getApplicationConfiguration()` resolves to `EMPTY_APPLICATION_CONFIGURATION` (`policies: {}`), so every `isActionGranted` returns false — the same behaviour as today's failing `getGrantedPoliciesApi()`. Never invent grants.
 - **Call-site style:** flat accessor hooks. `const { tenantName } = useTenantInfo()`, never `useApplicationConfiguration().tenant.name`.
-- **No `as` casts at call sites.** The shared contract now types `policies` as `Policies`; if a call site seems to need a cast, the contract is wrong, not the call site.
+- **No `as` casts at call sites.** The shared contract types `policies` as `Partial<Policies>`, and after plan 5 the whole `app-config` layer carries **zero** `as` casts. An absent key means "not granted". If a call site seems to need a cast, the contract is wrong, not the call site.
 - **`MasterDataGridResourcesProvider` does not appear in this repo at all (0 usages).** There is nothing to unmount. Do not add it.
 - Every task must end with `apps/web` type-checking cleanly. No task may leave the repo non-compiling.
 - **There is no app-level unit gate in this repo** — root `unit-test` runs only the `ayasofyazilim-ui` submodule's jest. A production build is the only thing that can catch an RSC boundary or provider-tree mistake, so Task 4 gates on it.
@@ -182,7 +182,7 @@ export default async function Providers({ children, lang }: ProvidersProps) {
 
 Three things to note:
 
-- `getGrantedPoliciesApi()` and its `as Record<Policy, boolean>` cast are gone. `policies` now comes from `fetched`, already typed `Policies`.
+- `getGrantedPoliciesApi()` and its `as Record<Policy, boolean>` cast are gone. `policies` now comes from `fetched`, already typed `Partial<Policies>`. Do not reintroduce a cast.
 - `TenantProvider` is still mounted. It is removed in Task 3, once nothing reads `useTenant`. Until then both providers write `countryCode2` and `tenantTimeZone` to `localStorage` with identical values — a harmless duplicate write that Task 3 resolves.
 - `lang` is passed to both providers on purpose; `TenantProvider` still needs it this task.
 
