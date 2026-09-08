@@ -18,6 +18,25 @@ pos-app has `core` as a remote and shares its root commit, but sits **27 commits
 
 Keeping the file paths and symbol names byte-identical to core is what preserves the merge path: whoever next syncs pos-app with core gets a clean, mechanical resolution rather than a rename-detection failure.
 
+## AMENDMENT (2026-09-08): mirror post-port core — its source outranks this plan's code blocks
+
+This plan was written before `core` was fixed. **`core/main` is now `4608792`** (core-mobile#23), which closed two fail-open bugs in exactly the files this plan mirrors. Every code block below was transcribed from core's *pre-fix* state and is therefore stale in places.
+
+**Rule for this plan: where a code block here disagrees with core's actual current source, core wins.** Read the real file and mirror it. That is not a licence to improvise — it is the plan's own architecture, which is to keep pos-app's layout and symbol names identical to core's so a future `git merge core/main` resolves mechanically. A faithful copy of a stale transcription defeats the entire point.
+
+What the port added, all of which pos-app must inherit:
+
+1. **`NormalizedApplicationConfiguration`** in `appConfigTypes.ts` — `country` is `null` when the country lookup did not land. The normalizer returns this type, not `ApplicationConfiguration`.
+2. **`setConfiguration` resolves `configuration.country ?? state.configuration.country`** — a failed country lookup must not overwrite the last known-good country. A defaulted block is byte-identical to a real answer from a sparse TRY tenant, which is why the distinction lives in the type rather than in a store guard.
+3. **`clearGrants()`** on the configuration store — clears `settings`, `features` and that store's `policies`, **keeps `country`**.
+4. **`clearGrantedPolicies()`** on the user store — clears `user.grantedPolicies`, the map policy gates actually read.
+5. **`revokeSessionAuthority()`** in `SessionProvider`, calling both clears, wired into **both** paths that end without a usable session: the `catch` and the validation early-return (this plan's `if (!userData || !userId || !jwtUser || …) return;`). Neither caller acts on the result, so without this a tenant switch keeps serving the previous tenant's `EarlyRefundAvailable` — fail-open on a flag whose contract is fail-closed.
+6. **`UserProfile.grantedPolicies` is `Partial<Record<Policies, boolean>>`**, not `Record<Policies, boolean>`. The total type was never satisfiable — the payload carries only granted keys — and `Partial` keeps literal-key typo detection that `Record<string, boolean>` would lose.
+
+**Expect item 6 to surface new strict-null errors** on `user.grantedPolicies[key]` in pos-app. That is the type telling the truth, not a regression. Fix them at the type level; do not add casts.
+
+Note this plan's line ~324 (`const grantedPolicies = configuration?.policies ?? null;`) and the guard that follows it are precisely where item 5 belongs.
+
 ## Global Constraints
 
 - Gate baselines from `AGENTS.md`, measured 2026-08-27: `npm run typecheck` clean, `npm test` 30 suites / 361 tests all passing, `npm run lint` 0 errors / 35 warnings. **Re-measure before starting.**
