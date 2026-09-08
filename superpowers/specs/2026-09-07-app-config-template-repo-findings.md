@@ -107,3 +107,39 @@ and failed a build there with a misleading `next/font` error.
 Plan 6's submodule pointer bump needs the app-config layer on `web-utils`
 `main`, so that part **blocks on PR ayasofyazilim-clomerce/web-utils#48**. The
 consumer migration can proceed before it.
+
+## Feasibility of adopting the shared layer (verified 2026-09-07)
+
+The shared `app-config` layer type-checks against this repo. Every external
+symbol it needs is present in this repo own generated SDK:
+
+| Needed by | Symbol | In `ayasofyazilim-core-project` |
+| --- | --- | --- |
+| `types.ts` | `Volo_..._ApplicationConfigurationDto` | present, `AccountService/types.gen.ts:300` |
+| `types.ts` | `UniRefund_..._CountrySettingInfoDto` | present, `AdministrationService/types.gen.ts:112` |
+| `fetch.ts` | `client.abpApplicationConfiguration` | present, `AccountServiceClient.ts:23` |
+| `fetch.ts` | `getApiAbpApplicationConfiguration` + `includeLocalizationResources` | present, `AccountService/sdk.gen.ts:157` |
+| `fetch.ts` | `client.countrySetting` | present, `AdministrationServiceClient.ts:33` |
+| `fetch.ts` | `getApiAdministrationServiceCountrySettingsInfo` | present, `AdministrationService/sdk.gen.ts:530` |
+
+The `ApplicationConfigurationDto` here carries every field the normalizer
+reads (`auth`, `setting`, `currentUser`, `features`, `currentTenant`,
+`timing`), and `CountrySettingInfoDto` carries all seven of its fields. The
+package is `packages/core-saas` with `exports: { "./*": "./*/index.ts" }`, so
+`@repo/core-saas/AccountService` resolves the same way it does in web-app.
+
+### The submodule bump is small
+
+An earlier note that this repo is 4,189 commits behind applies to the
+**superproject only**. The `packages/utils` submodule pointer is just **10
+commits** behind `web-utils` main: 8 files, +88/-174, touching only `auth/`,
+`tag/`, `api/` and `package.json`. It does not touch `policies/`, which is
+why the hooks still exist at the pinned commit and the break is latent rather
+than active.
+
+### What this repo does NOT need
+
+No `SETTING_KEYS` or `FEATURE_KEYS` consumer exists here: there is no
+early-refund surface and no two-factor gate reading configuration. The
+placeholder configuration therefore needs no `settings` or `features` entries
+of its own; taking them from the (empty) fetch result is correct.

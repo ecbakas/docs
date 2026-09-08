@@ -112,7 +112,7 @@ it.
 
 ## The normalized contract
 
-Identical in all four repos.
+Identical in all four repos except the `policies` field, noted below.
 
 ```ts
 interface ApplicationConfiguration {
@@ -141,12 +141,21 @@ interface ApplicationConfiguration {
     countryName: string | null;
   };
   timeZone: string;
-  policies: Record<string, boolean>;
+  policies: Partial<Policies>; // web-app only; see below
   settings: Record<string, string | null>;
   features: Record<string, string | null>;
 }
 ```
 
+- `policies` is **the one field that differs between repos.** web-app, via the
+  `web-utils` submodule, types it as `Partial<Policies>`, where `Policies` is
+  `Record<Policy, boolean>` over the literal union generated from
+  `policies.json`. The union is what makes an unknown or misspelled policy name
+  a type error; `Partial` is what stops the type claiming all 1,094 keys are
+  present, since the payload carries only the granted subset and an absent key
+  means "not granted". core, pos-app and super-app still hold the weaker
+  `Record<string, boolean>`. This is a deliberate, tracked divergence, not an
+  oversight.
 - `tenant.isHost` is computed, not fetched. `CountrySettingInfoDto.tenantId`
   reports the host as `Guid.Empty` while ABP's `currentTenant.id` is `null`;
   the existing `isHostTenant` predicate already treats both as host, so the
@@ -239,7 +248,18 @@ New `packages/utils/app-config/`:
   endpoint. The RN implementations keep the `…Api()` name since they have no
   such boundary.
 - `provider.tsx` — `ApplicationConfigurationProvider` and
-  `useApplicationConfiguration()`.
+  `useApplicationConfiguration()`. The provider takes a **required `lang` prop**
+  alongside `configuration`. `lang` is a route segment rather than
+  configuration, so it rides its own context instead of being folded into the
+  contract. This is a breaking API change to a shared component: every mount
+  site has to pass it.
+- The provider also exports four flat accessor hooks over that same context:
+  `useLocalization()`, `useTenantInfo()`, `useCountryInfo()` and
+  `useTenantDateFormatters()`. They exist to serve the flat call-site style —
+  write `const { tenantName } = useTenantInfo()`, never
+  `useApplicationConfiguration().tenant.name`. `useTenantInfo` and
+  `useCountryInfo` also centralize the `?? ""` null-to-empty-string
+  normalization that would otherwise be repeated at every call site.
 
 Rewiring:
 
