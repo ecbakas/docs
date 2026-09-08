@@ -378,7 +378,23 @@ Replace with:
       .countryName ?? "";
 ```
 
-and swap the import to `@/store/application-configuration`. This is a module-scope read outside React, which is why it uses `getState()` — keep it that way.
+and swap the import to `@/store/application-configuration`. This is a module-scope read outside React, which is why it uses `getState()` — keep it that way. **Do not reach for `useCountryName()` here**; `tagPrintTemplateV3` is a plain async function called from an `onPress` handler, and this repo treats `react-hooks/rules-of-hooks` as an error.
+
+- [ ] **Step 4a: Retire the selectors that turn out to have no consumer**
+
+Task 2 added `useCountryCode2` and `useCountryName` to the store on the strength of a justification in its brief that was **wrong** — it claimed the print template needed them, but the print template reads imperatively via `getState()` (Step 4 above), so neither hook is called there.
+
+Measured against pos-app as it stands: `countryCode2` appears only in `CountryInput.tsx` / `CountrySelectionModal.tsx`, which build their own local type from `country.alpha2` and have nothing to do with the configuration store. `countryName` has exactly one reader, the print template.
+
+So after the consumer migration is done, check both:
+
+```bash
+grep -rn "useCountryCode2\|useCountryName" src --include=*.ts --include=*.tsx | grep -v "src/store/application-configuration.ts"
+```
+
+**Delete whichever has no consumer**, along with its entry in the module's export surface. Keep whichever does. Do not keep an unconsumed export "for parity with core" — these sit **below** the pos-app-only marker, so they are not core's API and removing them costs core nothing. This plan has removed dead surface for exactly this reason before.
+
+Say in your report which you kept, which you deleted, and the grep output that decided it.
 
 - [ ] **Step 5: Delete the country-settings store**
 
