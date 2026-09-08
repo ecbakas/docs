@@ -396,12 +396,16 @@ git commit -m "refactor(app-config): migrate useTenant consumers to useLocalizat
 
 - [ ] **Step 1: Confirm both are unreferenced**
 
+Grep **every alias that resolves to the file**, not just the canonical one. Task 2 found two consumers importing via `@/src/providers/tenant`, which a `@/providers/tenant` grep does not match:
+
 ```bash
-grep -rn "@/providers/tenant" apps/web/src | grep -v "src/providers/tenant.tsx"
+grep -rn "providers/tenant\|from \"\./tenant\"\|from \"\.\./tenant\"" apps/web/src | grep -v "src/providers/tenant.tsx"
 grep -rn "ConfigProvider\|useConfig" apps/web/src | grep -v "src/providers/configuration.tsx"
 ```
 
-The first must show only the `TenantProvider` import in `providers.tsx`. The second must show nothing — `ConfigProvider` is a dead stub with no consumers and is never mounted.
+The first must show only the `TenantProvider` import in `providers.tsx` (a relative `./tenant`). It will also match `components/auth/*.tsx` importing `TenantSelection` from `./tenant` — that is `components/auth/tenant.tsx`, a **different file**. Leave those alone.
+
+The second must show nothing — `ConfigProvider` is a dead stub with no consumers and is never mounted.
 
 - [ ] **Step 2: Unmount `TenantProvider`**
 
@@ -430,13 +434,31 @@ git rm apps/web/src/providers/tenant.tsx apps/web/src/providers/configuration.ts
 
 The `localStorage` writes for `countryCode2` and `tenantTimeZone` are not lost — `ApplicationConfigurationProvider` performs both, now sourced from `PLACEHOLDER_COUNTRY` and `PLACEHOLDER_TIME_ZONE`.
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 4: Fold in two cosmetic fixes from the Task 1 review**
+
+Both were deferred to this task because it already edits one of the files and neither justified its own commit.
+
+1. In `apps/web/src/components/sidebar-layout/sidebar-layout.tsx` and `apps/web/src/components/sidebar-template/index.tsx`, the `@repo/utils/app-config` import Task 1 added sits **after** the pre-existing `@repo/utils/policies` type import, breaking alphabetical order. Move it above. No lint rule catches this, so it will not fail a gate either way.
+
+2. In `apps/web/src/providers/providers.tsx`, the provider and its type are imported from the same specifier on two lines. Combine them:
+
+```tsx
+import {
+  ApplicationConfigurationProvider,
+  type ApplicationConfiguration,
+} from "@repo/utils/app-config";
+```
+
+- [ ] **Step 5: Verify**
+
+Symbol-based and path-based, since neither alone is sufficient — a type-only import is invisible to a symbol grep, and an aliased path is invisible to a canonical-path grep:
 
 ```bash
 grep -rn "useTenant\|TenantProvider\|useGrantedPolicies\|GrantedPoliciesProvider" apps/web/src | grep -v "TenantSelection"
+grep -rn "providers/tenant\|providers/configuration" apps/web/src
 ```
 
-Expected: no matches.
+Expected: no matches from either.
 
 ```bash
 cd apps/web && pnpm run type-check
@@ -444,7 +466,7 @@ cd apps/web && pnpm run type-check
 
 Expected: exit 0, 0 errors.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/web/src
