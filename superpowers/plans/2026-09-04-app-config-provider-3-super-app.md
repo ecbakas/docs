@@ -394,11 +394,21 @@ npm run lint
 
 Compare **named** suites against the Task 1 Step 2 baseline. `npm test` also runs sibling worktrees' tests, so totals will not match across sessions and are not evidence of anything.
 
-- [ ] **Step 3: On-device check of the early refund gate**
+- [ ] **Step 3: On-device check of the early refund gate — likely NOT RUNNABLE, establish that first**
 
-A green jest suite does not prove this path: the store is persisted, the provider's lifecycle runs only on a device, and the jest `BackHandler` mock is unfaithful, so provider-lifecycle code must actually be loaded onto hardware.
+**Before spending any time on this step, determine whether it is executable at all.** As of 2026-09-03 the traveller account and the only debuggable build sit on **different devices**, so a traveller-facing path has no on-device route. Early refund is surfaced on tag detail, which is reachable by traveller and staff roles — so whether this is runnable depends on which account the debuggable build can sign in as.
 
-Requirements: a **debuggable** build. Check `flags=` before assuming — at last check only the V3 build was debuggable, and it is shared with pos-app sessions.
+```bash
+adb devices -l
+adb shell dumpsys package com.unirefund.superapp | grep -i "flags=\|versionName"
+```
+
+If there is no debuggable build, or the debuggable build cannot reach a tenant whose
+`CountryManagement.EarlyRefund.EarlyRefundAvailable` you can read, **report this step as NOT RUN with the specific reason and move on.** Do not fake it, do not substitute a jest run and call it a device check, and do not let it block Steps 4-6. A truthful "not run because X" is the correct deliverable.
+
+If it *is* runnable, proceed. A green jest suite does not prove this path: the store is persisted, the provider's lifecycle runs only on a device, and the jest `BackHandler` mock is unfaithful, so provider-lifecycle code must actually be loaded onto hardware.
+
+Requirements: a **debuggable** build. Check `flags=` before assuming — at last check only the V3 build was debuggable, and it is shared with pos-app sessions, so confirm no one else is mid-session on it.
 
 ```bash
 cd super-app
@@ -428,7 +438,14 @@ npx prettier --write src/store/application-configuration.ts \
 
 - [ ] **Step 5: Update `AGENTS.md`**
 
-Record the re-measured baseline and note that `country-settings/values` and the `UniRefund.Settings.GetValues` dependency are gone, so a future session does not go looking for them.
+Its gate table is **stale by a wide margin** — it claims 130/131 suites, 1044 tests and 74 warnings, against a measured 192 suites, 1825 tests and 89 warnings. It was already stale before this plan started, so this is not a regression, but core re-measured its own table inside the very changeset Task 1 merged and super-app's counterpart was left behind. Replace the numbers with what **you** measured in Step 2, not with the figures quoted in this plan.
+
+Also record, so a future session does not go hunting:
+
+- `country-settings/values` and the `UniRefund.Settings.GetValues` grant dependency are **gone**.
+- `src/store/country-settings.ts` is deleted; currency and country now come from `@/store/application-configuration` (`useAppCurrency`, `useCountryCode2`).
+- `src/screens/traveller/Cards/__tests__/CardScannerModal.router.test.tsx` is a **load-dependent flake** — it fails under full-suite load and passes in isolation. Say so, so the next session does not read it as a regression.
+- `tokens.test.ts` remains the only deterministic failing suite.
 
 - [ ] **Step 6: Commit**
 
