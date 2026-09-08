@@ -207,7 +207,7 @@ Remove `setCountrySettings` / `setCountrySettingsValues` / `clearCountrySettings
 
 - [ ] **Step 6: Update `clearSessionScopedStores`**
 
-Replace `clearCountrySettings()` with the configuration store's clear, keeping the existing comment's intent — a store left populated is the next account's data on screen:
+**Task 1 already added `clearConfiguration()` here.** Do not add it a second time. The only edit is to **remove** the now-dead `clearCountrySettings()` call, leaving:
 
 ```ts
   const clearSessionScopedStores = useCallback(() => {
@@ -217,6 +217,30 @@ Replace `clearCountrySettings()` with the configuration store's clear, keeping t
     usePendingScanStore.getState().clearPending();
   }, [clearUser]);
 ```
+
+- [ ] **Step 6a: Clear the configuration on an environment switch too**
+
+`src/store/tenant.ts`'s `setEnvironment` clears `tenantId` and `publicTenants` under the comment "Tenants are environment-specific, so a selection cannot survive the switch." `country` and `settings` are **equally environment-specific and equally persisted**, and nothing clears them. Add the configuration clear beside the tenant one:
+
+```ts
+    useApplicationConfigurationStore.getState().clearConfiguration();
+```
+
+Import it the same way the file imports its other cross-store dependencies; if that creates a cycle, call it through `require` at the call site the way the codebase already does elsewhere, and say so in your report.
+
+Why this is not optional: today the switch is signed-out-only (`EnvironmentChips` renders on `StaffLoginScreen` and `debug-menu`, both pre-auth) and the stale window closes on the next `getUserData`. **This task is what makes it matter** — after it, `useAppCurrency`, `useCountryCode2` and `useEarlyRefundAvailable` all read that persisted data live.
+
+- [ ] **Step 6b: Cover the sign-out and expiry wiring with a test**
+
+`clearConfiguration()` is tested at the store level, but its wiring into `clearSessionScopedStores` is not — which is precisely how Step 6 could silently drop it. `src/providers/__tests__/sessionLifecycle.router.test.tsx` already contains the template: a "clears the tag list on sign-out" case and a "clears the tag list when the session expires" case, each asserting on store state after the path runs.
+
+Add a sibling assertion to **both** paths, following whatever those cases already do rather than inventing a new shape:
+
+```ts
+expect(useApplicationConfigurationStore.getState().isLoaded).toBe(false);
+```
+
+Run the suite and confirm the new assertions actually execute (a router test that silently no-ops is worse than none).
 
 - [ ] **Step 7: Delete the store**
 
@@ -232,10 +256,23 @@ grep -rn "store/country-settings" super-app/src --include="*.ts" --include="*.ts
 
 Expected: no hits.
 
+- [ ] **Step 7a: Fix the typing that is currently hidden behind an implicit `any`**
+
+`src/providers/SessionProvider.tsx:315` declares `let configResult;` with no annotation, so it is `any`. **That is the only reason type-check currently passes**, and it also means `configResult.user.isAuthenticated` is unchecked at compile time.
+
+The real mismatch: `UserProfile.grantedPolicies` is `Record<Policies, boolean>` where `Policies = keyof typeof policies.gen.json` — a mapped type over a literal union of **1,094 required keys** under `strict`. The configuration's `policies` is `Record<string, boolean>`, which is not assignable to it. The type claims totality the payload never has; the granted map only ever holds the granted subset.
+
+Fix both halves together, or the annotation alone will produce a real error:
+
+1. Annotate the variable: `let configResult: ApplicationConfiguration | undefined;`
+2. Widen `UserProfile.grantedPolicies` to `Record<string, boolean>` — which is already exactly what `isActionGranted(granted: Record<string, boolean> | undefined, …)` accepts, so no call site changes.
+
+Do **not** silence this with a cast. If widening surfaces further errors, report them rather than casting.
+
 - [ ] **Step 8: Type-check and test**
 
 Run: `cd super-app && npm run typecheck`
-Expected: clean, matching the Task 1 Step 2 baseline.
+Expected: clean, matching the Task 1 Step 2 baseline — but now genuinely clean rather than clean because a variable was `any`.
 
 Run: `cd super-app && npm test 2>&1 | tail -30`
 Expected: the same **named** failing suites as the baseline — no new ones. If a country-settings test existed, delete it along with the store; if a test now covers the new store, it should pass.
