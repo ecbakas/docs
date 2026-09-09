@@ -179,10 +179,12 @@ Stage explicitly — this is a worktree off `main`, but the discipline matters a
 
 ```bash
 cd /c/unirefund/web-app-sdk
-git add packages/saas packages/core-saas
+git add packages/saas packages/core-saas pnpm-lock.yaml
 git commit -m "chore: adopt @ayasofyazilim-clomerce/sdk-generator, share one core per package"
 git show --name-only --oneline HEAD | head -20
 ```
+
+`pnpm-lock.yaml` **must** be in that list. The dependency swap changes it, and a commit whose `package.json` names a dependency the lockfile does not resolve fails CI's `--frozen-lockfile` install. (Corrected during execution: the original staging list omitted it.)
 
 Check that last output for anything you did not intend to stage, particularly a submodule pointer bump.
 
