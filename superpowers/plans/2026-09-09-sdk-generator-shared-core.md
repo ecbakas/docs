@@ -14,7 +14,7 @@
 
 - Package name is exactly `@ayasofyazilim-clomerce/sdk-generator`. The scope is forced: GitHub Packages requires it to match the publishing repo's owner, and no `unirefund` org exists.
 - `@hey-api/openapi-ts` is pinned to exactly `0.60.1` — no caret, no bump. `0.86.0` is the last version shipping the legacy client; `0.87.0` removed it. A range that crosses 0.87.0 breaks generation entirely.
-- `@apidevtools/swagger-parser` is pinned to exactly `13.0.0`. Added during execution: the published `^10.1.0` caps at OpenAPI 3.0.3 while the gateway serves 3.0.4, so generation currently fails in every repo with `Unsupported OpenAPI version: 3.0.4`. Do not lower it. Note that both web-app SDK packages already declare `^12.0.0` — a previous attempt at this fix that had no effect, because the generator resolves its own nested copy rather than the consumer's.
+- `@apidevtools/swagger-parser` is pinned to exactly `13.0.0`. Added during execution, and the reason is narrower than it first appeared: `10.1.0` is the **only** release in the 10.x–12.x line whose supported-version list omits OpenAPI `3.0.4`, which the gateway now serves. `10.1.1` onward accept it. The failure was reached because this repo's committed lockfile pinned exactly `10.1.0` and `npm install` honoured it — not because the declared `^10.1.0` range was too low. Pinning exactly is what stops a stale lockfile reintroducing that one bad build. Do not lower it.
 - The generated client shape does not change. `client: { name: "legacy/fetch", bundle: true }` stays.
 - `patchResponseBody()` must throw, never warn, when its anchor is missing.
 - The blob fallback is scoped to `response.ok` so error-response handling is untouched.
@@ -535,7 +535,7 @@ Four deliberate removals and one deliberate non-change:
 - `scripts.init-release` and `scripts.release` go — `init-release` calls a `publish` binary that is not a dependency, and releases now come from the tag workflow.
 - `devDependencies.release-it` goes with them.
 - `@hey-api/openapi-ts` keeps its exact `0.60.1` — no caret. This is already the de-facto version in all four consumers, because the generator resolves its own nested copy; it is being made explicit, not changed.
-- `@apidevtools/swagger-parser` moves from `^10.1.0` to an exact `13.0.0`. This is a **bug fix, not a tidy-up**: `10.1.0` supports OpenAPI up to 3.0.3, and the gateway now serves **3.0.4**, so `SwaggerParser.dereference` throws `Unsupported OpenAPI version: 3.0.4` and generation fails before hey-api is ever reached. Verified during execution by running a real single-service generation, and verified fixed on `13.0.0`, which dereferences the live document (36 paths) through the same ESM default-import shape `generator.mjs` already uses. Pinned exactly, for the same reproducible-output reason as hey-api.
+- `@apidevtools/swagger-parser` moves from `^10.1.0` to an exact `13.0.0`. Discovered by running a real generation during execution, which threw `Unsupported OpenAPI version: 3.0.4` before hey-api was reached. The precise fact, verified against the published tarballs: `10.1.0` alone omits `3.0.4` from its supported-version list; `10.1.1` and `12.1.0` both include it. The old committed lockfile pinned exactly `10.1.0`, which is how that build got installed. `13.0.0` is verified against the live document (36 paths, same ESM default-import shape `generator.mjs` already uses) and pinned exactly so no future lockfile can reintroduce `10.1.0`.
 
 - [ ] **Step 2: Add the version-ceiling comment**
 
