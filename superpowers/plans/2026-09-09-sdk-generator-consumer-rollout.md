@@ -142,9 +142,11 @@ Expected per package: exactly `./core`, a count of `1`, and no single-dot hits. 
 
 - [ ] **Step 8: Prettier pass on both packages**
 
+`packages/saas` has a `format` script; `packages/core-saas` does not, so run the same prettier invocation directly there:
+
 ```bash
 cd /c/unirefund/web-app-sdk/packages/saas && pnpm format
-cd /c/unirefund/web-app-sdk/packages/core-saas && pnpm format
+cd /c/unirefund/web-app-sdk/packages/core-saas && npx prettier --write "**/*.{ts,md}" --trailing-comma es5
 ```
 
 - [ ] **Step 9: Confirm regeneration is idempotent**
@@ -684,8 +686,10 @@ Expected: `./core` only, count `1`, no single-dot hits. 4 core directories becom
 
 - [ ] **Step 9: Prettier pass**
 
+This package has no `format` script, so invoke prettier directly with the same options web-app's `packages/saas` uses:
+
 ```bash
-cd /c/unirefund/ayasofyazilim-core-project/packages/core-saas && pnpm format
+cd /c/unirefund/ayasofyazilim-core-project/packages/core-saas && npx prettier --write "**/*.{ts,md}" --trailing-comma es5
 ```
 
 - [ ] **Step 10: Confirm the result matches web-app's core-saas**
