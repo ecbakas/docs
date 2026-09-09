@@ -1,9 +1,15 @@
 # SDK generator: shared core, GitHub Packages, and the binary-response fix
 
 **Date:** 2026-09-09
-**Scope:** `OpenAPI-SDK-generator` (upstream), then all four consumers —
+**Scope:** `OpenAPI-SDK-generator` (upstream), then all five consumers —
 `web-app` (`packages/saas`, `packages/core-saas`), `super-app` (`src/saas`),
-`pos-app` (`src/saas`), `ayasofyazilim-core-project` (`packages/core-saas`).
+`pos-app` (`src/saas`), `core-mobile` (`src/saas`, checked out at
+`C:/unirefund/core`), `ayasofyazilim-core-project` (`packages/core-saas`).
+
+**Corrected during execution:** this spec originally said four consumers and
+omitted `core-mobile`, found by the final whole-branch review. It matters more
+than a miscount, because `core-mobile` is the one repo that can undo this work —
+see the sync hazard under its rollout step below.
 
 ## Problem
 
@@ -98,7 +104,11 @@ Current state:
 | web-app | npm `@ayasofyazilim/sdk_generator@0.0.13` | 17 duplicated |
 | ayasofyazilim-core-project | npm, same | 4 duplicated |
 | super-app | vendored fork | 1 shared |
-| pos-app | vendored fork (identical to super-app's) | 1 shared |
+| pos-app | vendored fork | 1 shared |
+| core-mobile | vendored fork | 1 shared |
+
+The three vendored forks are byte-identical to each other — all md5
+`a14e411eec1bb5e24aac46213d26b408`. There is one fork, checked into three repos.
 
 ## Non-goals
 
@@ -194,7 +204,7 @@ grep across `apps/` and `packages/`. Public entry points
 (`@repo/saas/<Service>`) are unchanged — `index.ts` re-exports `ApiError` and
 friends from `../core/…` instead of `./core/…`.
 
-### 3–4. `super-app`, `pos-app`
+### 3–5. `super-app`, `pos-app`, `core-mobile`
 
 Delete the vendored `generator.mjs`, depend on the published package, add the
 `.npmrc` scope mapping (neither repo has one today), regenerate.
@@ -208,6 +218,15 @@ Because the generator keeps hey-api at `0.60.1` — the version these repos alre
 generate with — the core diff should be the patch and nothing else. Any other
 change in that diff means an assumption here is wrong: stop and investigate
 rather than committing it.
+
+**Sync hazard — `core-mobile` must not lag `super-app`.** `super-app` carries
+`core-mobile` as a git remote named `core`, and the two are synced with a real
+`git merge core/main` over a shared root commit. If `super-app` deletes its
+vendored `generator.mjs` while `core-mobile` still has one, the next sync merge
+raises a delete/modify conflict — and resolved the wrong way it silently
+reinstates the vendored generator in `super-app`, re-forking exactly what this
+work de-duplicated. Migrate `core-mobile` before or in the same change as
+`super-app`, never after.
 
 ### 5. `ayasofyazilim-core-project`
 
