@@ -196,8 +196,14 @@ friends from `../core/…` instead of `./core/…`.
 
 ### 3–4. `super-app`, `pos-app`
 
-Delete the vendored `generator.mjs` and `index.mjs`, depend on the published
-package, add the `.npmrc` scope mapping (neither repo has one today), regenerate.
+Delete the vendored `generator.mjs`, depend on the published package, add the
+`.npmrc` scope mapping (neither repo has one today), regenerate.
+
+Each repo **keeps** its own thin `index.mjs`: that file is the CLI, and it reads
+the repo's own `API_LIST.json` from a path relative to itself, so it cannot move
+into the package. Only the shared `generateApi` logic is centralized. web-app
+already has exactly this split (a `commander`-based `index.mjs` importing the
+generator), which is the shape the other three converge on.
 Because the generator keeps hey-api at `0.60.1` — the version these repos already
 generate with — the core diff should be the patch and nothing else. Any other
 change in that diff means an assumption here is wrong: stop and investigate
