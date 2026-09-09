@@ -153,10 +153,16 @@ comment: `0.86.0` is the last version shipping the legacy client, `0.87.0`
 removed it. This makes explicit what is already true, and stops a future `^`
 range from silently crossing 0.87.0 and breaking generation.
 
-**Move to GitHub Packages.** Rename to `@ayasofyazilim-clomerce/sdk_generator` —
-GitHub Packages requires the scope to match the repo owner — and add
-`publishConfig.registry=https://npm.pkg.github.com`. That scope is already the
-one `web-app/.npmrc` maps for the capture SDK, so that file needs no change.
+**Move to GitHub Packages.** Rename to `@ayasofyazilim-clomerce/sdk-generator`
+and add `publishConfig.registry=https://npm.pkg.github.com`.
+
+The scope is not a free choice: GitHub Packages requires it to match the owner of
+the publishing repo, no `unirefund` org exists, and the generator repo lives
+under `ayasofyazilim-clomerce`. That scope is already the one `web-app/.npmrc`
+maps for the capture SDK, so that file needs no change. The name is kebab-cased
+to match the `capture-core` / `capture-react` precedent in the same scope, and
+carries no `unirefund-` prefix because `ayasofyazilim-core-project` — the generic
+base template — is one of the four consumers.
 
 **Publish via Actions,** not from a laptop: a tag-triggered workflow with
 `permissions: packages: write`, using `GITHUB_TOKEN`.
@@ -221,10 +227,13 @@ are `PK\x03\x04` and which opens in Excel — not a 9-byte file reading
 
 ## Risks and blockers
 
-- **Publishing is blocked on credentials.** The available `gh` token carries
-  `repo` and `workflow` but not `write:packages`, so the first publish must come
-  from the Actions workflow, or from someone holding that scope. The org may also
-  need to permit first-time package creation for this scope.
+- **The first publish is a handoff, not a blocker.** The available `gh` token
+  carries `repo` and `workflow` but not `write:packages`, so the publish cannot
+  be driven from this session. Resolved: the workflow lands as part of step 1 and
+  the repo owner fires the first tag. Steps 2–5 stay parked until the package
+  resolves from the registry — do not work around a failed install by
+  re-vendoring the generator. The org may also need to permit first-time package
+  creation for this scope.
 - **Regeneration needs a reachable gateway.** Every consumer step hits
   `…/swagger/v1/swagger.json`. A gateway that is down blocks the rollout, and a
   gateway serving a *different* schema silently produces an unrelated diff.
