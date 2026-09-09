@@ -18,6 +18,7 @@
 - `patchResponseBody()` must throw, never warn, when its anchor is missing.
 - The blob fallback is scoped to `response.ok` so error-response handling is untouched.
 - Repo is public; nothing secret goes in it. Publishing uses `GITHUB_TOKEN` inside Actions only.
+- The `test` script is exactly `node --test`, with no path and no glob. Corrected during execution: the originally planned `node --test test/` is broken on Node 22.19.0 — Node treats a directory argument as a module to load and fails with `Cannot find module '<abs>/test'`, discovering 1 "test" and failing it. A `test/*.mjs` glob works only where the shell expands it, so it is not safe for a `cmd`-based Windows run. Bare `node --test` uses Node's own recursive discovery, needs no shell expansion, and gives 5/5 identically on Windows and `ubuntu-latest`.
 - This plan ends at a pushed tag. The first publish is fired by the repo owner; do not attempt `npm publish` locally (the available token lacks `write:packages`).
 
 ## Scope
@@ -56,7 +57,7 @@ git checkout -b feat/shared-core-and-binary-fix
 In `package.json`, inside `"scripts"`, add:
 
 ```json
-"test": "node --test test/"
+"test": "node --test"
 ```
 
 - [ ] **Step 3: Write the failing test**
@@ -516,7 +517,7 @@ Apply these changes, leaving `repository`, `bugs`, `homepage`, `license`, `type`
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "dependencies": {
     "@apidevtools/swagger-parser": "^10.1.0",
