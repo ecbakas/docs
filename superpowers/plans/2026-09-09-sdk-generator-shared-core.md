@@ -14,6 +14,7 @@
 
 - Package name is exactly `@ayasofyazilim-clomerce/sdk-generator`. The scope is forced: GitHub Packages requires it to match the publishing repo's owner, and no `unirefund` org exists.
 - `@hey-api/openapi-ts` is pinned to exactly `0.60.1` — no caret, no bump. `0.86.0` is the last version shipping the legacy client; `0.87.0` removed it. A range that crosses 0.87.0 breaks generation entirely.
+- `@apidevtools/swagger-parser` is pinned to exactly `13.0.0`. Added during execution: the published `^10.1.0` caps at OpenAPI 3.0.3 while the gateway serves 3.0.4, so generation currently fails in every repo with `Unsupported OpenAPI version: 3.0.4`. Do not lower it. Note that both web-app SDK packages already declare `^12.0.0` — a previous attempt at this fix that had no effect, because the generator resolves its own nested copy rather than the consumer's.
 - The generated client shape does not change. `client: { name: "legacy/fetch", bundle: true }` stays.
 - `patchResponseBody()` must throw, never warn, when its anchor is missing.
 - The blob fallback is scoped to `response.ok` so error-response handling is untouched.
@@ -520,7 +521,7 @@ Apply these changes, leaving `repository`, `bugs`, `homepage`, `license`, `type`
     "test": "node --test"
   },
   "dependencies": {
-    "@apidevtools/swagger-parser": "^10.1.0",
+    "@apidevtools/swagger-parser": "13.0.0",
     "@hey-api/openapi-ts": "0.60.1",
     "typescript": "^5.4.5"
   }
@@ -534,6 +535,7 @@ Four deliberate removals and one deliberate non-change:
 - `scripts.init-release` and `scripts.release` go — `init-release` calls a `publish` binary that is not a dependency, and releases now come from the tag workflow.
 - `devDependencies.release-it` goes with them.
 - `@hey-api/openapi-ts` keeps its exact `0.60.1` — no caret. This is already the de-facto version in all four consumers, because the generator resolves its own nested copy; it is being made explicit, not changed.
+- `@apidevtools/swagger-parser` moves from `^10.1.0` to an exact `13.0.0`. This is a **bug fix, not a tidy-up**: `10.1.0` supports OpenAPI up to 3.0.3, and the gateway now serves **3.0.4**, so `SwaggerParser.dereference` throws `Unsupported OpenAPI version: 3.0.4` and generation fails before hey-api is ever reached. Verified during execution by running a real single-service generation, and verified fixed on `13.0.0`, which dereferences the live document (36 paths) through the same ESM default-import shape `generator.mjs` already uses. Pinned exactly, for the same reproducible-output reason as hey-api.
 
 - [ ] **Step 2: Add the version-ceiling comment**
 
@@ -628,10 +630,10 @@ git push --follow-tags
 - [ ] **Step 4: Verify the manifest is valid and the name is right**
 
 ```bash
-node -e "const p=require('./package.json'); console.log(p.name, p.version, p.publishConfig.registry, p.dependencies['@hey-api/openapi-ts'])"
+node -e "const p=require('./package.json'); console.log(p.name, p.version, p.publishConfig.registry, p.dependencies['@hey-api/openapi-ts'], p.dependencies['@apidevtools/swagger-parser'])"
 ```
 
-Expected: `@ayasofyazilim-clomerce/sdk-generator 0.1.0 https://npm.pkg.github.com 0.60.1`
+Expected: `@ayasofyazilim-clomerce/sdk-generator 0.1.0 https://npm.pkg.github.com 0.60.1 13.0.0`
 
 - [ ] **Step 5: Confirm the pin resolves to a legacy-capable version**
 
