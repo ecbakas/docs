@@ -122,7 +122,9 @@ It calls, in this order:
 
 - `useTravellerStore.getState().clearTravellerInfo()` — traveller identity **and** the cart
 - `usePayoutStore.getState().clearPayoutCard()` — the scanned PAN
-- `usePrintProgressStore.getState().clearPrintStage()` — a stale overlay stage
+- `usePrintProgress.getState().clearStage()` — a stale overlay stage (the sale
+  and tag-detail screens alias this as `clearPrintStage` locally; the store's
+  own action is `clearStage`)
 - `useMerchantStore.getState().resetSessionData()` — new action, below
 - `AsyncStorage.removeItem("createdTagIds")` — retires the duplicate key
 
@@ -165,12 +167,27 @@ does not allocate one; a cashier who never opens Device Settings reads
 `preferenceDefaults` and occupies no slot. `addCreatedTagId` counts as a write,
 so anyone who completes a sale gets an entry.
 
-Existing selectors keep their names and signatures. `hideSignatures` and
-friends become derived reads against
-`preferencesByUser[activeUserId] ?? preferenceDefaults`, and their setters
-write into that user's entry. Consumers (`DeviceSettingsScreen`,
-`tagPrintTemplate`, `SaleScreenV2`, `PrinterModal`) are untouched — this is the
-point of doing it inside the store rather than at 30 call sites.
+**The five flat fields stay, as a projection.** zustand has no computed state,
+and `DeviceSettingsScreen` destructures `hideSignatures`, `afterTagCreate`,
+`saleScreenVersion`, `receiptTemplate` and `diditWorkflowId` straight off
+`useMerchantStore()`. So rather than converting ~30 call sites to a selector
+hook, the flat fields remain and become a *projection* of the active user's
+entry:
+
+- `setActiveUserId(id)` writes the flat fields from
+  `preferencesByUser[id] ?? preferenceDefaults`.
+- Each setter writes **both** the flat field and the active user's entry
+  (stamping `updatedAt`), creating the entry if it does not exist.
+- The flat fields are **not** in `partialize` — persisting them is what made
+  the settings device-global in the first place. `preferencesByUser` and
+  `preferenceDefaults` are the only persisted preference state.
+- `onRehydrateStorage` projects from `preferenceDefaults`, since no user is
+  active yet at that point. Without this the login screen would briefly show
+  `APP_DEFAULTS` instead of the terminal's migrated configuration.
+
+Consumers (`DeviceSettingsScreen`, `tagPrintTemplate`, `SaleScreenV2`,
+`PrinterModal`) are therefore untouched — the point of doing this inside the
+store.
 
 **Cap.** The map grows by one entry per cashier who ever logs into the
 terminal. Keep the 10 most recently written, dropping the oldest by
