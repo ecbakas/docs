@@ -744,7 +744,28 @@ head -c 4 ~/Downloads/agent-cash-report-*.xlsx | od -c | head -1
 - Deprecate the old package so a floating install cannot resurrect the un-patched generator. Needs npm publish rights on `@ayasofyazilim/sdk_generator`:
   `npm deprecate @ayasofyazilim/sdk_generator "moved to @ayasofyazilim-clomerce/sdk-generator on GitHub Packages"`
 - Add the GitHub Packages credential to each repo's CI that installs dependencies (super-app, pos-app, core-mobile have no `.npmrc` today, so their CI has never needed one).
-- Grep each consumer for non-json, non-binary 2xx responses. After the patch, an unlisted MIME like `application/xml` returns a `Blob` where it previously returned `undefined`, and the SDK's declared response types are known to be inaccurate here, so `tsc` will not flag a call site that expected a string or branched on falsiness.
+- ~~Grep each consumer for non-json, non-binary 2xx responses.~~ **Resolved during execution, no grep needed.** The new branch fires only when `Content-Type` matches none of the four existing branches — and in exactly that case the old code returned `undefined`, so any call site reaching it was already broken. A call site that worked did so by matching one of the four untouched branches. The change can therefore only convert a broken `undefined` into a working `Blob`; it cannot break something that worked. Measured bound in web-app: only two services declare a `Blob`/`File` response, four carry documented binary endpoints, and 28 response types are declared `string` and travel the untouched `text/*` branch.
+
+### Follow-up: core-project's tenant forms (filed 2026-09-10)
+
+`ayasofyazilim-core-project`'s two tenant forms —
+`apps/web/src/app/[lang]/(main)/(core)/management/saas/tenants/new/_components/form.tsx`
+and `.../tenants/[tenantId]/_components/form.tsx` — reference
+`Volo_Saas_Host_Dtos_SaasTenantCreateDto` / `...UpdateDto`, which the backend has
+renamed to `UniRefund_SaasService_Tenants_SaasTenantCustomCreateDto` /
+`...CustomUpdateDto`. Task 5's regeneration surfaced this as 4 new `TS2724`
+errors (7745 → 7749).
+
+**These forms are already broken against the live backend**; core-project's
+SaasService SDK had simply never been regenerated, so the stale types kept them
+compiling. The regeneration removed that crutch rather than causing the problem.
+
+web-app has already migrated its equivalents — same file paths, new DTO names —
+so a working reference exists. It is not a mechanical port: the two versions
+differ by roughly 230 lines each and web-app's are ~40 lines longer, so the work
+includes deciding which of web-app's changes belong in a generic template and
+which are product-specific. That judgment is why this was filed rather than
+folded into the rollout.
 
 ## Self-Review
 
