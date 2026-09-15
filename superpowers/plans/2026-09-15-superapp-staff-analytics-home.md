@@ -22,7 +22,11 @@
 - **Every chart and table card gets an explicit pixel height**, never `flex: 1`. A wide table in a horizontal `ScrollView` renders its header over an empty body without one, and only fails after a re-render.
 - **Colors come from `@/utils/theme`** (`colors.primary`, `colors.success`, `colors.error`, `colors.warning`, `colors.muted`, `colors.border`, `colors.foreground`, `colors.card`). Green/red/amber are reserved for outcome states only.
 - **Gates:** `npm run typecheck` and `npm test`. There is no CI. `npm run init` must have been run with `SUPPORTED_LOCALES` set, or `tsc` reports phantom TS2307s.
-- **Baseline:** `tokens.test.ts` already fails on `main`. That one failure is expected; nothing else may fail.
+- **Baseline — neither gate is clean at `main`; both mean "no NEW failures".** Measured on `1270feb5`:
+  - `npm test`: 1 suite / 3 tests fail, in `src/components/ui/__tests__/tokens.test.ts`. Totals: 194 of 195 suites pass, 1864 of 1868 tests pass (1 skipped).
+  - `npm run typecheck`: one pre-existing `TS2345` in `src/app/(auth)/__tests__/tabBackNavigation.router.test.tsx`. Its message embeds a route-union size that shifts whenever a new file changes `.expo/types/router.d.ts` — a cosmetic difference, not a regression.
+  - Where a task below says "typecheck clean" or "tests pass", read it as "no failure beyond this baseline".
+- **Any variable a `jest.mock` factory references must be named `mock*`.** `babel-plugin-jest-hoist` hoists the factory above the file's consts and rejects every other out-of-scope reference at transform time — the suite fails to compile, with an error that has nothing to do with the code under test. Task 2 hit this; the test code below is already `mock`-prefixed.
 - **Comment density:** write far fewer comments than the surrounding dense docblocks suggest. Comment the non-obvious *why*, never the *what*.
 
 ---
@@ -1671,17 +1675,20 @@ Create `src/hooks/__tests__/useAnalyticsDashboard.router.test.ts`:
 import { renderHook, waitFor } from "@testing-library/react-native";
 import { useAnalyticsDashboard } from "../useAnalyticsDashboard";
 
-const listSources = jest.fn();
-const executeSource = jest.fn();
-let grantedPolicies: Record<string, boolean> = {
+// Names captured by a jest.mock factory MUST start with `mock` —
+// babel-plugin-jest-hoist rejects any other out-of-scope reference at
+// transform time, before the module under test is even resolved.
+const mockListSources = jest.fn();
+const mockExecuteSource = jest.fn();
+let mockGrantedPolicies: Record<string, boolean> = {
   "AnalyticService.AnalyticsDataSources": true,
   "AnalyticService.AnalyticsDataSources.ViewList": true,
 };
 
 jest.mock("@/actions/AnalyticService/actions", () => ({
-  getAnalyticsDataSourcesApi: (...args: unknown[]) => listSources(...args),
+  getAnalyticsDataSourcesApi: (...args: unknown[]) => mockListSources(...args),
   postAnalyticsDataSourceExecuteApi: (...args: unknown[]) =>
-    executeSource(...args),
+    mockExecuteSource(...args),
 }));
 
 jest.mock("@/store/application-configuration", () => ({
@@ -1690,7 +1697,7 @@ jest.mock("@/store/application-configuration", () => ({
 
 jest.mock("@/store/user", () => ({
   __esModule: true,
-  default: () => ({ user: { grantedPolicies } }),
+  default: () => ({ user: { grantedPolicies: mockGrantedPolicies } }),
 }));
 
 jest.mock("@/providers/LocalizationProvider", () => ({
@@ -1698,28 +1705,28 @@ jest.mock("@/providers/LocalizationProvider", () => ({
 }));
 
 beforeEach(() => {
-  listSources.mockReset();
-  executeSource.mockReset();
-  grantedPolicies = {
+  mockListSources.mockReset();
+  mockExecuteSource.mockReset();
+  mockGrantedPolicies = {
     "AnalyticService.AnalyticsDataSources": true,
     "AnalyticService.AnalyticsDataSources.ViewList": true,
   };
 });
 
 it("executes only the sources the dashboard knows how to draw", async () => {
-  listSources.mockResolvedValue({
+  mockListSources.mockResolvedValue({
     items: [
       { id: "1", name: "TopNationalitiesByTagsAndAmount" },
       { id: "2", name: "SomethingTheAppDoesNotRender" },
     ],
   });
-  executeSource.mockResolvedValue({ data: [{ label: "TR", tags: 4 }] });
+  mockExecuteSource.mockResolvedValue({ data: [{ label: "TR", tags: 4 }] });
 
   const { result } = renderHook(() => useAnalyticsDashboard());
 
   await waitFor(() => expect(result.current.isLoading).toBe(false));
-  expect(executeSource).toHaveBeenCalledTimes(1);
-  expect(executeSource).toHaveBeenCalledWith("1", {
+  expect(mockExecuteSource).toHaveBeenCalledTimes(1);
+  expect(mockExecuteSource).toHaveBeenCalledWith("1", {
     Timezone: "Europe/Istanbul",
   });
   expect(result.current.cards).toHaveLength(1);
@@ -1727,13 +1734,13 @@ it("executes only the sources the dashboard knows how to draw", async () => {
 
 // One bad source must cost one card, never the dashboard.
 it("keeps the cards whose sources succeeded when one execute fails", async () => {
-  listSources.mockResolvedValue({
+  mockListSources.mockResolvedValue({
     items: [
       { id: "1", name: "TopNationalitiesByTagsAndAmount" },
       { id: "2", name: "IssuedByResidence" },
     ],
   });
-  executeSource.mockImplementation(async (id: string) => {
+  mockExecuteSource.mockImplementation(async (id: string) => {
     if (id === "2") throw new Error("clickhouse timeout");
     return { data: [{ label: "TR", tags: 4 }] };
   });
@@ -1748,7 +1755,7 @@ it("keeps the cards whose sources succeeded when one execute fails", async () =>
 });
 
 it("reports an error when the source list itself fails", async () => {
-  listSources.mockRejectedValue(new Error("gateway down"));
+  mockListSources.mockRejectedValue(new Error("gateway down"));
 
   const { result } = renderHook(() => useAnalyticsDashboard());
 
@@ -1759,13 +1766,13 @@ it("reports an error when the source list itself fails", async () => {
 
 // Both halves of the ABP pair are enforced, so holding one is not access.
 it("is forbidden without the full permission pair, and calls nothing", async () => {
-  grantedPolicies = { "AnalyticService.AnalyticsDataSources": true };
+  mockGrantedPolicies = { "AnalyticService.AnalyticsDataSources": true };
 
   const { result } = renderHook(() => useAnalyticsDashboard());
 
   await waitFor(() => expect(result.current.isLoading).toBe(false));
   expect(result.current.isForbidden).toBe(true);
-  expect(listSources).not.toHaveBeenCalled();
+  expect(mockListSources).not.toHaveBeenCalled();
 });
 ```
 
@@ -2105,10 +2112,10 @@ import type { AnalyticsCard } from "@/utils/analytics/types";
 // The library draws on a Skia canvas, which renders nothing assertable under
 // jest. What is ours — and what these tests are for — is the data handed down
 // and the legend beside it.
-const polarProps = jest.fn();
+const mockPolarProps = jest.fn();
 jest.mock("victory-native", () => ({
   PolarChart: (props: Record<string, unknown>) => {
-    polarProps(props);
+    mockPolarProps(props);
     return null;
   },
   Pie: { Chart: () => null, Slice: () => null },
@@ -2125,7 +2132,7 @@ const card: Extract<AnalyticsCard, { kind: "donut" }> = {
   ],
 };
 
-beforeEach(() => polarProps.mockReset());
+beforeEach(() => mockPolarProps.mockReset());
 
 it("renders the card title", () => {
   render(<AnalyticsDonut card={card} />);
@@ -2135,7 +2142,7 @@ it("renders the card title", () => {
 it("hands the chart every slice with its colour", () => {
   render(<AnalyticsDonut card={card} />);
 
-  expect(polarProps).toHaveBeenCalledWith(
+  expect(mockPolarProps).toHaveBeenCalledWith(
     expect.objectContaining({
       data: [
         { label: "TR", value: 4, color: "#2563eb" },
@@ -2306,10 +2313,10 @@ import React from "react";
 import { AnalyticsBar } from "../AnalyticsBar";
 import type { AnalyticsCard } from "@/utils/analytics/types";
 
-const cartesianProps = jest.fn();
+const mockCartesianProps = jest.fn();
 jest.mock("victory-native", () => ({
   CartesianChart: (props: Record<string, unknown>) => {
-    cartesianProps(props);
+    mockCartesianProps(props);
     return null;
   },
   Bar: () => null,
@@ -2344,7 +2351,7 @@ const grouped: Extract<AnalyticsCard, { kind: "bar" }> = {
   data: [{ label: "January", Refunded: 3, Outstanding: 1 }],
 };
 
-beforeEach(() => cartesianProps.mockReset());
+beforeEach(() => mockCartesianProps.mockReset());
 
 it("renders the card title", () => {
   render(<AnalyticsBar card={single} />);
@@ -2354,7 +2361,7 @@ it("renders the card title", () => {
 it("hands the chart the data keyed by label, with one yKey per series", () => {
   render(<AnalyticsBar card={single} />);
 
-  expect(cartesianProps).toHaveBeenCalledWith(
+  expect(mockCartesianProps).toHaveBeenCalledWith(
     expect.objectContaining({
       data: single.data,
       xKey: "label",
@@ -2366,7 +2373,7 @@ it("hands the chart the data keyed by label, with one yKey per series", () => {
 it("passes every series key when the card is grouped", () => {
   render(<AnalyticsBar card={grouped} />);
 
-  expect(cartesianProps).toHaveBeenCalledWith(
+  expect(mockCartesianProps).toHaveBeenCalledWith(
     expect.objectContaining({ yKeys: ["Refunded", "Outstanding"] }),
   );
 });
@@ -2393,10 +2400,10 @@ import React from "react";
 import { AnalyticsArea } from "../AnalyticsArea";
 import type { AnalyticsCard } from "@/utils/analytics/types";
 
-const cartesianProps = jest.fn();
+const mockCartesianProps = jest.fn();
 jest.mock("victory-native", () => ({
   CartesianChart: (props: Record<string, unknown>) => {
-    cartesianProps(props);
+    mockCartesianProps(props);
     return null;
   },
   Area: () => null,
@@ -2416,7 +2423,7 @@ const card: Extract<AnalyticsCard, { kind: "area" }> = {
   ],
 };
 
-beforeEach(() => cartesianProps.mockReset());
+beforeEach(() => mockCartesianProps.mockReset());
 
 it("renders the card title", () => {
   render(<AnalyticsArea card={card} />);
@@ -2426,7 +2433,7 @@ it("renders the card title", () => {
 it("hands the chart the points keyed by label", () => {
   render(<AnalyticsArea card={card} />);
 
-  expect(cartesianProps).toHaveBeenCalledWith(
+  expect(mockCartesianProps).toHaveBeenCalledWith(
     expect.objectContaining({
       data: card.points,
       xKey: "label",
@@ -2821,7 +2828,9 @@ import { Text } from "react-native";
 import { AnalyticsDashboard } from "../_components/AnalyticsDashboard";
 import type { AnalyticsCard } from "@/utils/analytics/types";
 
-const state = {
+// Captured by a jest.mock factory, so the name must start with `mock` —
+// babel-plugin-jest-hoist rejects any other out-of-scope reference.
+const mockState = {
   cards: [] as AnalyticsCard[],
   isLoading: false,
   isForbidden: false,
@@ -2830,7 +2839,7 @@ const state = {
 };
 
 jest.mock("@/hooks/useAnalyticsDashboard", () => ({
-  useAnalyticsDashboard: () => state,
+  useAnalyticsDashboard: () => mockState,
 }));
 
 jest.mock("@/providers/LocalizationProvider", () => ({
@@ -2862,14 +2871,14 @@ jest.mock("@/components/charts/AnalyticsTable", () => ({
 }));
 
 beforeEach(() => {
-  state.cards = [];
-  state.isLoading = false;
-  state.isForbidden = false;
-  state.error = null;
+  mockState.cards = [];
+  mockState.isLoading = false;
+  mockState.isForbidden = false;
+  mockState.error = null;
 });
 
 it("shows skeletons while loading", () => {
-  state.isLoading = true;
+  mockState.isLoading = true;
 
   render(<AnalyticsDashboard />);
 
@@ -2877,7 +2886,7 @@ it("shows skeletons while loading", () => {
 });
 
 it("routes each card to the component for its kind", () => {
-  state.cards = [
+  mockState.cards = [
     {
       id: "nationalities",
       kind: "donut",
@@ -2908,7 +2917,7 @@ it("routes each card to the component for its kind", () => {
 // The three non-content states are distinct: a user who may not see analytics
 // is told something different from one whose request failed.
 it("explains a forbidden dashboard without offering a retry", () => {
-  state.isForbidden = true;
+  mockState.isForbidden = true;
 
   render(<AnalyticsDashboard />);
 
@@ -2919,7 +2928,7 @@ it("explains a forbidden dashboard without offering a retry", () => {
 });
 
 it("offers a retry when the request failed", () => {
-  state.error = "gateway down";
+  mockState.error = "gateway down";
 
   render(<AnalyticsDashboard />);
 
