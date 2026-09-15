@@ -26,7 +26,7 @@
   - `npm test`: 1 suite / 3 tests fail, in `src/components/ui/__tests__/tokens.test.ts`. Totals: 194 of 195 suites pass, 1864 of 1868 tests pass (1 skipped).
   - `npm run typecheck`: one pre-existing `TS2345` in `src/app/(auth)/__tests__/tabBackNavigation.router.test.tsx`. Its message embeds a route-union size that shifts whenever a new file changes `.expo/types/router.d.ts` — a cosmetic difference, not a regression.
   - Where a task below says "typecheck clean" or "tests pass", read it as "no failure beyond this baseline".
-- **Any variable a `jest.mock` factory references must be named `mock*`.** `babel-plugin-jest-hoist` hoists the factory above the file's consts and rejects every other out-of-scope reference at transform time — the suite fails to compile, with an error that has nothing to do with the code under test. Task 2 hit this; the test code below is already `mock`-prefixed.
+- **A `jest.mock` factory may not reach ANYTHING outside itself, imports included.** `babel-plugin-jest-hoist` hoists the factory above the file's imports and consts, then rejects every out-of-scope reference at transform time — the suite fails to compile, with an error that has nothing to do with the code under test. Two consequences, both hit during execution: a captured variable must be named `mock*` (Task 2), and a component a factory renders must come from a `require()` **inside** the factory, never the file's top-level import (Task 11). The test code below already does both.
 - **Comment density:** write far fewer comments than the surrounding dense docblocks suggest. Comment the non-obvious *why*, never the *what*.
 
 ---
@@ -3102,7 +3102,6 @@ Create `src/screens/merchant/Home/__tests__/MerchantHomeScreen.router.test.tsx`:
 ```tsx
 import { render, screen } from "@testing-library/react-native";
 import React from "react";
-import { Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import MerchantHomeScreen from "../HomeScreen";
 
@@ -3129,9 +3128,14 @@ jest.mock("expo-router", () => ({
 
 jest.mock("@/components/Ionicons", () => ({ Ionicons: () => null }));
 
-jest.mock("@/screens/shared/_components/AnalyticsDashboard", () => ({
-  AnalyticsDashboard: () => <Text>analytics-dashboard</Text>,
-}));
+jest.mock("@/screens/shared/_components/AnalyticsDashboard", () => {
+  // `require` inside the factory, not the file's top-level import: a jest.mock
+  // factory is hoisted above the imports, so closing over `Text` fails at
+  // transform time. Same pattern as TravellerLoginScreen.router.test.tsx.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- a hoisted jest factory cannot reach a top-level import.
+  const { Text } = require("react-native");
+  return { AnalyticsDashboard: () => <Text>analytics-dashboard</Text> };
+});
 
 // TabPage renders SafeAreaView, whose useSafeAreaInsets throws outside a
 // provider — jest-setup.ts does not mock react-native-safe-area-context.
