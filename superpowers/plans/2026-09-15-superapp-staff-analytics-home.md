@@ -2462,7 +2462,7 @@ import type { AnalyticsCard } from "@/utils/analytics/types";
 import { colors } from "@/utils/theme";
 import React from "react";
 import { View } from "react-native";
-import { Bar, CartesianChart } from "victory-native";
+import { Bar, CartesianChart, HorizontalBar } from "victory-native";
 import { ChartCard } from "./ChartCard";
 import { useChartFont } from "./chartFont";
 
@@ -2471,6 +2471,10 @@ type BarCard = Extract<AnalyticsCard, { kind: "bar" }>;
 export function AnalyticsBar({ card }: { card: BarCard }) {
   const font = useChartFont();
   const yKeys = card.series.map((series) => series.key);
+  // `HorizontalBar` only lays out correctly inside a chart that is itself
+  // horizontal — the mark and the chart's orientation move together.
+  const isHorizontal = card.orientation === "horizontal";
+  const Mark = isHorizontal ? HorizontalBar : Bar;
 
   return (
     <ChartCard title={card.title}>
@@ -2492,6 +2496,7 @@ export function AnalyticsBar({ card }: { card: BarCard }) {
           data={card.data}
           xKey="label"
           yKeys={yKeys}
+          orientation={isHorizontal ? "horizontal" : "vertical"}
           domainPadding={{ left: 24, right: 24, top: 12 }}
           axisOptions={{
             font,
@@ -2501,7 +2506,7 @@ export function AnalyticsBar({ card }: { card: BarCard }) {
         >
           {({ points, chartBounds }) =>
             card.series.map((series) => (
-              <Bar
+              <Mark
                 key={series.key}
                 points={points[series.key]}
                 chartBounds={chartBounds}
@@ -2518,30 +2523,22 @@ export function AnalyticsBar({ card }: { card: BarCard }) {
 }
 ```
 
-- [ ] **Step 5b: Honour `card.orientation`**
+- [ ] **Step 5b: Verify the API this code was written against**
 
-victory-native 41.26 ships `HorizontalBar` alongside `Bar` (both are present in
-the published package). Confirm the export name against the installed types:
+The whole victory-native 41.26.0 surface used above was read off the installed
+type declarations in Task 7. Re-confirm in one command before moving on:
 
 ```bash
 cd /c/unirefund/super-app-safe
-grep -rn "HorizontalBar" node_modules/victory-native/lib/typescript/lib/index.d.ts
+grep -nE "orientation|axisOptions" node_modules/victory-native/dist/cartesian/CartesianChart.d.ts | head
+grep -n "export declare const HorizontalBar" node_modules/victory-native/dist/cartesian/components/HorizontalBar.d.ts
 ```
 
-If it is exported, import it and pick the mark by orientation — three of the
-four bar cards are horizontal because their category labels are too long to
-read as columns at phone width:
-
-```tsx
-import { Bar, CartesianChart, HorizontalBar } from "victory-native";
-// ...
-const Mark = card.orientation === "horizontal" ? HorizontalBar : Bar;
-```
-
-then render `<Mark key={series.key} ... />` in place of `<Bar ... />`.
-
-If the grep finds nothing, leave every card on `Bar`, say so in the commit
-message, and open a follow-up — do not invent an API.
+Expected: `CartesianChart` accepts `orientation?: "vertical"` / `orientation:
+"horizontal"` and `axisOptions`, and `HorizontalBar` is exported with the same
+`points` / `chartBounds` / `color` / `barCount` / `roundedCorners` shape as
+`Bar` — which is what lets the `Mark` swap above be a one-line change. If any
+of that has moved, follow the installed types and say so in your report.
 
 - [ ] **Step 6: Write the area chart**
 
