@@ -2313,6 +2313,9 @@ jest.mock("victory-native", () => ({
     return null;
   },
   Bar: () => null,
+  // Step 5b picks this for a horizontal card. It must exist in the mock even
+  // though CartesianChart never invokes the render-prop children here.
+  HorizontalBar: () => null,
 }));
 
 jest.mock("../chartFont", () => ({ useChartFont: () => null }));
@@ -3052,9 +3055,9 @@ npx jest src/screens/shared/__tests__/AnalyticsDashboard.router.test.tsx --selec
 npm run typecheck
 ```
 
-Expected: 5 passing, typecheck clean. If `Button`'s prop shape differs from
-`action={{ label, onPress }}`, match `src/components/ui/Button.tsx` — the
-component is authoritative.
+Expected: 5 passing, typecheck clean. `Button`'s prop shape is confirmed:
+`action: { onPress: () => void | Promise<void>; label: string }`
+(`src/components/ui/Button.tsx:145`), re-exported from `@/components/ui`.
 
 - [ ] **Step 5: Commit**
 
@@ -3094,6 +3097,7 @@ Create `src/screens/merchant/Home/__tests__/MerchantHomeScreen.router.test.tsx`:
 import { render, screen } from "@testing-library/react-native";
 import React from "react";
 import { Text } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import MerchantHomeScreen from "../HomeScreen";
 
 jest.mock("@/providers/LocalizationProvider", () => ({
@@ -3123,8 +3127,22 @@ jest.mock("@/screens/shared/_components/AnalyticsDashboard", () => ({
   AnalyticsDashboard: () => <Text>analytics-dashboard</Text>,
 }));
 
+// TabPage renders SafeAreaView, whose useSafeAreaInsets throws outside a
+// provider — jest-setup.ts does not mock react-native-safe-area-context.
+const renderHome = () =>
+  render(
+    <SafeAreaProvider
+      initialMetrics={{
+        frame: { x: 0, y: 0, width: 390, height: 844 },
+        insets: { top: 47, left: 0, right: 0, bottom: 34 },
+      }}
+    >
+      <MerchantHomeScreen />
+    </SafeAreaProvider>,
+  );
+
 it("renders the analytics dashboard under the Home title", () => {
-  render(<MerchantHomeScreen />);
+  renderHome();
 
   expect(screen.getByText("MobileApp.Home.Title")).toBeTruthy();
   expect(screen.getByText("analytics-dashboard")).toBeTruthy();
@@ -3132,7 +3150,7 @@ it("renders the analytics dashboard under the Home title", () => {
 
 // The safe copy owns these; Home must not still be offering them.
 it("no longer offers the create-tag or connected-devices actions", () => {
-  render(<MerchantHomeScreen />);
+  renderHome();
 
   expect(screen.queryByText("MobileApp.CreateTag.Title")).toBeNull();
   expect(screen.queryByText("MobileApp.ConnectedDevices.Title")).toBeNull();
@@ -3182,9 +3200,9 @@ Expected: 2 passing.
 
 Create `src/screens/refund-point/Home/__tests__/RefundPointHomeScreen.router.test.tsx`
 as an exact copy of the merchant suite, with these three changes:
-the import becomes `import RefundPointHomeScreen from "../HomeScreen";`, both
-`render(...)` calls use `<RefundPointHomeScreen />`, and the second test's
-assertions become:
+the import becomes `import RefundPointHomeScreen from "../HomeScreen";`,
+`renderHome` renders `<RefundPointHomeScreen />` inside the same
+`SafeAreaProvider`, and the second test's assertions become:
 
 ```tsx
   expect(screen.queryByText("MobileApp.Refund.Title")).toBeNull();
@@ -3199,8 +3217,9 @@ role can diverge later without unpicking a shared one).
 
 Create `src/screens/customs/Home/__tests__/CustomsAnalyticsHome.router.test.tsx`
 as an exact copy of the merchant suite, with the import becoming
-`import CustomsHomeScreen from "../HomeScreen";`, both `render(...)` calls using
-`<CustomsHomeScreen />`, and the second test's assertions becoming:
+`import CustomsHomeScreen from "../HomeScreen";`, `renderHome` rendering
+`<CustomsHomeScreen />` inside the same `SafeAreaProvider`, and the second
+test's assertions becoming:
 
 ```tsx
   expect(screen.queryByText("MobileApp.Customs.Home.DateToday")).toBeNull();
