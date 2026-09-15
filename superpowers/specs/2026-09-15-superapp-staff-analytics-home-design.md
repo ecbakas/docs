@@ -248,8 +248,10 @@ knowingly — re-homing is follow-up work.
 
 **15 ClickHouse queries fire on Home.** Web pays this on a desktop route; mobile
 pays it on the app's landing tab, on mobile data. Mitigated by the fetch policy
-above — parallel execution, per-card rendering as each source lands, and no
-refetch on tab re-focus — but it is a real cost and worth measuring on a device.
+above — the 15 execute in parallel and the tab does not refetch on re-focus —
+but the dashboard still shows skeletons until the slowest source lands, and the
+whole cost is real. Worth measuring on a device; streaming each card in as its
+source returns is the obvious next lever if it reads as slow.
 
 ## Testing
 
