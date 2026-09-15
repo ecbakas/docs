@@ -58,14 +58,35 @@ Six were put to the user and answered.
 
 This is the one thing in the port that cannot be copied verbatim.
 
-In pos-app, a hook called inside a `<BottomSheet>` child loses its context. The
-sheet renders through a portal, so `useLocalization()` there resolves nothing
-and **renders the raw i18n key**. `MoreActionsSheet` already documents this and
-takes its strings as props for exactly this reason.
+In pos-app, a hook called inside a `<BottomSheet>` child loses its context.
+`MoreActionsSheet` already documents this and takes its strings as props for
+exactly this reason.
 
 super-app's `PageHeader` calls `useLocalization()` internally, for one string:
-the back button's `accessibilityLabel`. Dropped into a pos-app sheet as-is, it
-would ship `MobileApp.Common.Back` to a screen reader.
+the back button's `accessibilityLabel`. Dropped into a pos-app sheet as-is, that
+label would be wrong.
+
+**What actually happens, verified in the source:** `LocalizationContext` is
+created with a non-null default object whose `t` is `() => ""`. So the guard in
+`useLocalization` —
+
+```ts
+const value = use(LocalizationContext);
+if (!value) throw new Error("useLocalization must be wrapped in a <LocalizationProvider />");
+```
+
+— is unreachable: `value` is never falsy. A consumer that misses the provider
+**does not throw and does not surface the key**; it silently receives a `t` that
+returns the empty string. The failure is a screen reader announcing nothing,
+which is precisely the kind of defect that ships.
+
+This cuts two ways for the plan. It is why the `backLabel` override exists. It is
+also why `ModalTemplate`'s existing tests keep passing when `PageHeader` starts
+calling `useLocalization` — `Modal.test.tsx` renders without a
+`LocalizationProvider` and will get the empty-string `t` rather than an
+exception. Tests that assert on the back label must therefore provide the
+context or mock the module; asserting against `""` would pass for the wrong
+reason.
 
 So the ported `PageHeader` takes an optional `backLabel?: string`. Pages omit it
 and the hook supplies the label; a sheet's host resolves the string and passes
@@ -246,7 +267,7 @@ by `ProfileHero` and the Device group.
 
 New keys in both locales: `MobileApp.Profile.Group.Account`, `.Group.App`,
 `.Group.Device`, `.Role.Merchant`, `.Organization.Label`,
-`.Organization.OfCount`. `Group.Device` has no super-app counterpart (super-app
+`.Organization.CountSuffix`. `Group.Device` has no super-app counterpart (super-app
 groups Account / Wallet / App); it exists because pos-app's device concerns are
 the terminal's, not the account's.
 
