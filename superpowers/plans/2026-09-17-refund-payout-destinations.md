@@ -462,7 +462,22 @@ parts into four rows; it does not reinvent them.
 7. **`MobileApp.Refund.CardInvalid` is shown** when a captured card fails validation, as it is today.
 8. **The IBAN row's three fields** (IBAN, BIC, bank name) are all required; show the invalid message until all three are filled.
 
-**New i18n keys** (author in both locales, then `npm run init`):
+**Reuse these existing keys — do NOT add new ones for them.** My Cards already
+labels exactly these fields, and the refund flow is borrowing its capture set
+anyway, so the wording should match what the same agent sees there:
+
+| Need | Existing key |
+|---|---|
+| IBAN field label / placeholder | `Cards.IbanLabel` / `Cards.IbanPlaceholder` |
+| BIC field label / placeholder | `Cards.BicLabel` / `Cards.BicPlaceholder` |
+| Bank name label / placeholder | `Cards.BankNameLabel` / `Cards.BankNamePlaceholder` |
+| Invalid bank details | `Cards.InvalidIban` |
+| Expired token badge | `Cards.Expired` |
+| Default token badge | `Cards.Default` |
+| Invalid captured card | `Refund.CardInvalid` |
+
+**Genuinely new keys** (author in both locales WITHOUT the `MobileApp.` prefix,
+then `npm run init`):
 
 | Key | en-US | tr-TR |
 |---|---|---|
@@ -471,10 +486,11 @@ parts into four rows; it does not reinvent them.
 | `Refund.DifferentCard` | A different card | Başka bir kart |
 | `Refund.DifferentBank` | A different bank account | Başka bir banka hesabı |
 | `Refund.ShowMoreCards` | Show {count} more | {count} tane daha göster |
-| `Refund.Iban` | IBAN | IBAN |
-| `Refund.Bic` | BIC | BIC |
-| `Refund.BankName` | Bank name | Banka adı |
-| `Refund.BankInvalid` | Enter the IBAN, BIC and bank name. | IBAN, BIC ve banka adını girin. |
+
+**Dead once the mode selector goes** — remove in this task: `Refund.CardModeLive`,
+`Refund.CardModeRecord`, `Refund.CardUseAnother`, `Refund.CardNoneSaved`,
+`Refund.CardSaved`, `Refund.ConfirmPay`. Check each with a grep before deleting;
+`Refund.CardNumber` and `Refund.CardExpiry` stay (the capture rows still use them).
 
 - [ ] **Step 1: Add the i18n keys, regenerate, verify**
 
