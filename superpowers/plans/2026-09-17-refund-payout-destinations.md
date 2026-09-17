@@ -388,8 +388,13 @@ through `sortPayoutTokens`. Keep the existing request-id guard exactly as it is 
 it is what stops a slow earlier response overwriting a newer one — and keep the
 `setIsLoading…(false)` on the `!travellerId` early return that a review added.
 
-Rename `isLoadingCards` to `isLoadingTokens` throughout (it now covers both
-lists), including the prop chain added in the last round.
+Rename `isLoadingCards` to `isLoadingTokens` **only inside this file and its
+own test**. The name also appears in `RefundCardStep.tsx`,
+`RefundConfirmSheet.tsx`, `RefundSurface.tsx` and three render tests — leave
+every one of them alone. Task 3 rewrites the first, Task 4 deletes it and
+updates the rest, so renaming them here is work that gets thrown away and an
+edit collision besides. `RefundSurface.tsx:367` will not compile until Task 4;
+that is expected, exactly as Task 1's downstream errors were.
 
 - [ ] **Step 4: Retype `submit`**
 
