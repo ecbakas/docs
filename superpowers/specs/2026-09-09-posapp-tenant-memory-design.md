@@ -65,16 +65,25 @@ Two smaller faults in the same area:
 ## Decisions
 
 1. **Fix the behaviour, do not port the structure.** super-app keeps this in a
-   dedicated `store/tenant.ts` with a memoised `hydrateTenantStore()` that
-   `SessionProvider` awaits before anything else. That machinery exists to solve
-   a problem pos-app does not have: super-app's `getStoredTenantId()` and
-   `getGatewayUrl()` read the *store*, so a request firing before hydration
-   would target the wrong gateway. pos-app's equivalents read AsyncStorage
-   directly, which is already the authoritative value and needs no gate.
-   Importing the store would also create a cycle — `tenant.ts` needs
-   `ENVIRONMENT_URLS` and `isAppEnvironment` from `utils/environment.ts`, which
-   would need the store back. So tenant state stays in `SessionProvider` and
-   only the cache is extracted.
+   dedicated `store/tenant.ts` whose readers are the reason it needs a memoised
+   `hydrateTenantStore()`: its `getStoredTenantId()` and `getGatewayUrl()` read
+   the *store*, so a request firing before hydration would target the wrong
+   gateway. pos-app's equivalents read AsyncStorage directly, which is already
+   authoritative. Importing the store would also create a cycle — `tenant.ts`
+   needs `ENVIRONMENT_URLS` and `isAppEnvironment` from
+   `utils/environment.ts`, which would need the store back. So tenant state
+   stays in `SessionProvider` and only the cache is extracted.
+
+   **Correction, found during implementation:** pos-app needs a restore gate
+   after all — for a different reason than super-app's. Nothing here routes a
+   request through unhydrated state, but decision 3's validation *reads the
+   restored selection*, and the bootstrap restore races the first tenant load.
+   A refresh that wins the race sees no selection, skips validation, and leaves
+   a dead tenant selected until some later refresh happens to catch it. The
+   tenant effect is therefore gated on an `isTenantRestored` flag that the
+   bootstrap releases in a `finally` — released even on failure, since the login
+   screen still needs its list. This is one `useState`, not super-app's memoised
+   promise, because the only consumer is a React effect.
 2. **Clearing moves into `setEnvironment`.** The effect keyed on `environment`
    keeps only the part that is safe to run on a cold start: read that
    environment's cache, then refresh the list.
@@ -201,6 +210,14 @@ setTenantIdState((current) => {
 
 `refreshTenants` gains `environment` as a dependency, which is correct: it
 writes to that environment's cache.
+
+It reads the live selection through a `tenantIdRef` mirrored by every write,
+rather than taking `tenantId` as a dependency — that would rebuild the callback
+on every selection and re-fire the cache effect that depends on it, refetching
+the list each time the user picks a tenant. The validation also runs *after* the
+`await`, in the callback body rather than inside a `setTenantIdState` updater:
+a state updater is not a safe place for the `removeItem` and the error-code
+write, and putting them there silently lost the error code.
 
 ### 4. `src/screens/(public)/LoginScreen.tsx`
 

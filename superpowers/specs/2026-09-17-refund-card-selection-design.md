@@ -14,56 +14,64 @@ creation — the one the traveller expects the money to land on — is ignored.
 And a card typed at the counter is typed from a plastic card sitting on the
 desk, which the app can already read by NFC or camera on the My Cards screen.
 
-## What this builds
+## What this builds — REVISED 2026-09-17
 
-Three sources for the card, one outcome (`travellerCardId`), chosen per refund:
+**Superseded.** The first cut asked the agent to pick a *mode* — "Refund to a
+card" vs "Record a payout already made" — before asking where the money goes.
+That framing came from the API's field names, not from anything happening at
+the counter, and the user rejected it on sight: *"I dont understand what is a
+Record a payout already made"*.
 
-1. **The traveller's saved cards** — pick one.
-2. **The card registered at purchase** — the tag's `payoutTokenId`, captured by
-   the merchant at tag creation. **Blocked on a backend field; see below.**
-3. **Register a new card** — captured by tap, scan or manual entry, vaulted,
-   then paid.
+It is replaced by one question with four answers, each writing exactly one
+`CreateRefundDto` field:
 
-Plus the existing behaviour, kept: **record a payout already made** on a
-terminal, which writes `paidCardDetail` and moves no money.
+| Row | Writes | Source |
+|---|---|---|
+| A saved card | `travellerCardId` | the traveller's vaulted card tokens |
+| A saved bank account | `travellerBankTokenId` | the same list, bank tokens |
+| A different card | `paidCardDetail` | tap / scan / type at the desk |
+| A different bank account | `ibanInfo` | IBAN, BIC, bank name — typed |
+
+Design proposal, with the drawn sheet:
+https://claude.ai/artifact/D4VMpikXkAGHaSm1xL14V7
+
+**A radio group makes exclusivity structural.** There is no state in which two
+destinations are selected, so no state in which the payload carries two. The
+previous design left a typed card silently overriding a picked one with nothing
+on screen saying so.
+
+**The two "different …" rows are the only ones that expand**, and they expand in
+place. Capture is a way to fill a row, not a row of its own: tap, scan and type
+all produce the same two fields.
+
+### Ordering and the cap
+
+A frequent traveller accumulates cards — every desk that captured one left it
+behind — and everything that completes the refund sits *below* the list: the
+capture rows, both signatures, and the button that moves the money. So:
+
+- 1-3 payable cards: show them all.
+- 4+: the default plus two, then "Show N more cards", expanding in place.
+- Sort: default first, then payable by expiry with the furthest-out first
+  (most likely still in the wallet), and **every expired token below every
+  payable one**.
+
+The sort is what makes the cap safe. Cap at three without it and a traveller
+with three expired cards sees a list where nothing is selectable and every
+usable card hides behind a tap — strictly worse than no cap.
+
+Expired tokens stay listed but greyed and unpressable: the backend lists them
+and rejects them at refund time, so the sheet must refuse them before two
+signatures are collected, not after.
+
+**Expanding grows the sheet; it does not scroll inside it.** A scroll region
+nested in a `@gorhom/bottom-sheet` fights the sheet's own pan gesture — drag the
+list and the sheet dismisses. One scrolling surface is the only version that
+behaves on a small phone.
 
 Out of scope, explicitly: managing the traveller's card collection. The refund
-flow selects a card and can register one. It does not edit, delete, rename or
-re-order them. That is My Cards' job.
-
-## The two payment modes
-
-`CreateRefundDto` supports two genuinely different acts, and the refund flow
-must not blur them:
-
-| Mode | Field | What happens |
-|---|---|---|
-| **live** | `travellerCardId` | The API moves the money to a vaulted card. |
-| **record** | `paidCardDetail` | The money already moved on a terminal; this records which card, masked. |
-
-Today's flow only does `record` — it sends `paidCardDetail` with a masked
-number, and `maskCardNumber` carries the comment *"The API contract forbids a
-full PAN here"*. Live refunds are new.
-
-The mode is an **explicit choice**, not inferred from which control the agent
-touched:
-
-```
-Refund method: Credit card
-┌────────────────────────────────────────┐
-│ ( • ) Refund to a card                 │  live
-│ ( ○ ) Record a payout already made     │  record
-└────────────────────────────────────────┘
-```
-
-Under **live**, the three sources above. Under **record**, the same three
-capture controls, filling the masked record and vaulting nothing — the money
-moved on the terminal, so there is nothing to pay and no reason to store a card.
-
-`live` is hidden, not merely disabled, when the account cannot reach it:
-reading saved cards needs `RefundService.TravellerCards.ViewList`, registering
-one needs `.Create`. An agent holding neither can only record — which is
-exactly today's behaviour, so nothing regresses for anyone using the screen now.
+flow selects a destination and can register one. It does not edit, delete,
+rename or re-order. That is My Cards' job.
 
 ## Structure
 
@@ -72,21 +80,22 @@ fields, confirm and the in-flight lockdown. The card decision becomes its own
 component rather than a fourth concern in that file:
 
 ```
-RefundConfirmSheet          totals · signatures · confirm · lockdown  (unchanged)
-└─ RefundCardStep           only for method === "CreditCard"
-   ├─ mode: live | record
-   ├─ saved cards        →  travellerCardId
-   ├─ tag's payout card  →  travellerCardId      (blocked, see below)
-   ├─ capture            →  vault → travellerCardId
-   └─ manual record      →  paidCardDetail
+RefundConfirmSheet        totals · signatures · confirm · lockdown  (unchanged)
+└─ RefundPayoutStep       only for method === "CreditCard"
+   ├─ saved cards      →  travellerCardId
+   ├─ saved bank       →  travellerBankTokenId
+   ├─ a different card →  paidCardDetail      (tap / scan / type)
+   └─ a different bank →  ibanInfo            (typed)
 ```
 
 It owns one value the sheet reads back:
 
 ```ts
-type RefundCardChoice =
-  | { mode: "live"; travellerCardId: string }
-  | { mode: "record"; card: CardEntry };
+type RefundPayout =
+  | { kind: "savedCard"; travellerCardId: string }
+  | { kind: "savedBank"; travellerBankTokenId: string }
+  | { kind: "newCard"; card: CardEntry }
+  | { kind: "newBank"; iban: IbanEntry };
 ```
 
 `buildRefundDto` today branches on `method === "CreditCard"` and always writes
@@ -149,7 +158,7 @@ moved.
 `ApiError` holds `request.body`, which is the raw PAN, and `logger.error` runs
 in production. Vault error handling here follows the same rule.
 
-## Option 2 is blocked on the backend
+## Dropped: the tag's own payout card
 
 `payoutTokenId` is declared on `TagDetailDto`, `TagDto` and the three
 create-tag request DTOs. It is **not** on `TagListItemDto`, which is what
@@ -168,10 +177,10 @@ Rejected alternative: fetching tag detail per selected tag. One request per
 ticked row, and it raises a question the product has not answered — a refund is
 one payout to one card, but three selected tags may name two different cards.
 
-**Ships in two parts, and part one is what gets built.** Options 1 and 3 and the
-mode selector land now. Option 2 is one more row in the same picker, added when
-the field appears. Nothing built now is thrown away by it: the picker renders a
-list of card choices, and option 2 adds an entry to that list.
+**Out of the four the user specified.** The revised design lists saved card,
+saved bank, new card and new bank — the tag's own `payoutTokenId` is not among
+them. The backend request stands and the field is still worth having; if it
+lands, it becomes one more row in the same list rather than a redesign.
 
 ## Testing
 
