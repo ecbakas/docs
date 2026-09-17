@@ -584,6 +584,42 @@ captured card intact.
 `savedBanks={flow.savedBanks}`, `isLoadingTokens={flow.isLoadingTokens}`, and
 `handleConfirm` retyped to `RefundPayout | null`.
 
+- [ ] **Step 4b: Give the sheet a computed height, one detent**
+
+**This is a known project trap, not a precaution.** The sheet now has text
+fields (card number, expiry, and three IBAN fields) AND a list that grows when
+"Show N more" is tapped. `@gorhom/bottom-sheet` sizes a sheet from its measured
+content and then clips the content to that height, so a list that grows after
+first layout can never report a bigger one: the expanded rows are cut off and
+the stale detent misplaces the sheet. The shared `BottomSheet` also hardcodes
+`detached={true}`, and a detached sheet does not move on a window resize, so
+gorhom hand-lifts it over the keyboard badly.
+
+The known-good shape, hard-won on `SearchTraveller` — read
+`src/screens/shared/_components/SearchTraveller/SearchTraveller.tsx` and copy it:
+
+- Compute the height (`baseHeight + visibleRowCount * ROW_HEIGHT`, capped at
+  ~0.62 of the window) and pass it as an explicit **one-entry** `snapPoints`
+  with `enableDynamicSizing={false}`. A computed height changes in the same
+  render as the rows, so it cannot lag.
+- Exactly ONE detent. `keyboardBehavior` defaults to `interactive`, which
+  anchors to the highest detent — a second, taller snap point makes focusing a
+  field jump the sheet.
+- `keyboardBlurBehavior="restore"`, or the sheet stays parked a keyboard's
+  height too tall after the keyboard hides. Do NOT also call
+  `Keyboard.dismiss()` on content change — one thing moves at a time.
+- `detached={false}` + `bottomInset={0}`; put safe-area clearance in the content
+  padding instead.
+
+Measuring the non-growing part via `onLayout` is fine. `BottomSheetView`
+reports height via `onLayout`; `BottomSheetScrollView` reports via
+`onContentSizeChange`, which has **not** fired on a cold present — so do not
+switch the content to a scroll view to dodge this.
+
+Jest cannot catch any of this. Note in your report that it needs device QA, and
+that the QA must include **closing and reopening** the sheet, because a stale
+measurement survives a fast refresh and only shows up on a cold open.
+
 - [ ] **Step 5: Full verification**
 
 - `npx jest` — all suites green
