@@ -125,17 +125,23 @@ field-array index. `refund-fee-details.tsx` is already 641 lines; keeping eight
 inline `Controller` blocks and adding an accordion around them would push it
 well past what can be read or edited reliably.
 
-### The visualizer is unchanged
+### The visualizer needs one new prop
 
 `RefundFeeDetailsVisualizer` already groups whatever rows it is given by
 `feeType-refundMethod`. Handing it one section's rows therefore renders one card
 per ladder inside that section, and the per-card Copy-to menu keeps working in
-all three modes with no change. Grouping by method or by fee type falls out of
-the existing component for free.
+all three modes. Grouping by method or by fee type falls out of the existing
+component for free.
 
-`availableTargetMethods` is still called with the **full** detail list, not the
-section's rows, so an occupied method is excluded no matter which section the
-card is rendered in.
+One thing does have to change. The component derives its Copy-to targets with
+`availableTargetMethods(details, …)` — the same rows it renders. That was
+correct while it received every row, but a per-section instance sees only its
+own slice, and would offer a refund method that a row in *another* section
+already occupies. It therefore takes a new optional `allDetails` prop, used for
+target availability only, defaulting to `details` so a whole-set caller is
+unaffected.
+
+This is the only change to the component.
 
 ### Open state
 
@@ -206,4 +212,4 @@ and its Playwright suite needs a signed-in session against a live backend.
 
 - The submitted payload, the zod schema and every validation rule in it.
 - `preview-calculation.tsx`.
-- The `RefundFeeDetailsVisualizer` component itself.
+- The `RefundFeeDetailsVisualizer` component beyond the `allDetails` prop above.
