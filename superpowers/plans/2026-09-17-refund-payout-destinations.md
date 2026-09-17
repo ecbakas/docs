@@ -558,33 +558,84 @@ button stay in reach."
 
 **Interfaces:** consumes everything above. `onConfirm` becomes `(payout: RefundPayout | null) => void`.
 
-- [ ] **Step 1: Write the failing tests**
+**A captured card is NOT vaulted. Corrected 2026-09-17.**
 
-The vault behaviour is unchanged in kind but now applies only to `pendingCard`:
+This task originally said a captured card is vaulted at confirm and sent as
+`travellerCardId`. That contradicted both the spec's own table ("A different
+card → `paidCardDetail`") and the explicit four-option list this work was
+commissioned from, where option 3 is `cardDetail`. The spec wins. A card
+captured at the desk travels as `paidCardDetail`, masked, and nothing is
+written to the traveller's account.
 
-- a captured card is vaulted at confirm and the returned id is confirmed as `{ kind: "savedCard", travellerCardId }`
-- a refused vault does NOT call `onConfirm`
-- picking a saved bank confirms `{ kind: "savedBank", … }` with NO vault call
-- a typed IBAN confirms `{ kind: "newBank", … }` with NO vault call
+This also retires the plan's largest open risk: nobody ever verified that
+`postTravellerCard` accepts a staff token against another traveller's id, and
+two of the four destinations depended on it. They no longer do.
 
-**Widen `renderSheet`'s defaults** with `savedBanks: []` and `isLoadingTokens: false` or every existing test in the file stops compiling.
+- [ ] **Step 1: Put mod-97 behind the typed IBAN**
 
-- [ ] **Step 2: Run them and watch them fail**
+In `refund.logic.ts`, `isIbanEntryValid` currently only checks all three fields
+are non-empty, so a mistyped IBAN passes the sheet and posts. `ibanValid` in
+`src/utils/card/iban.ts:21` already does ISO 13616 mod-97 and is what the bank
+form uses. Use it:
 
-- [ ] **Step 3: Swap the step and retype the handler**
+```ts
+export function isIbanEntryValid(entry: IbanEntry): boolean {
+  return (
+    ibanValid(entry.iban) &&
+    entry.bic.trim().length > 0 &&
+    entry.bankName.trim().length > 0
+  );
+}
+```
 
-`RefundPayoutStep` replaces `RefundCardStep` — delete `RefundCardStep.tsx` and
-its test in this same commit, once nothing imports them. The confirm handler vaults only
-when `value.pendingCard` is set; every other destination confirms directly. A
-refused vault returns without confirming, leaving the sheet open with the
-captured card intact.
+Verified: `ibanValid("DK5000400440116243")` is `true` (the IBAN already in
+Task 1's committed tests, so they keep passing) and a single-digit typo of it is
+`false`. Add a test for the typo case.
 
-- [ ] **Step 4: Pass the new props from `RefundSurface`**
+The picker reads the same helper, so the row and `canSubmit` cannot disagree
+about whether an IBAN is acceptable — that agreement is why the validation goes
+here and not in the component.
+
+- [ ] **Step 2: Write the failing tests**
+
+- a captured card confirms as `{ kind: "newCard", card }` — **no vault call**
+- picking a saved card confirms `{ kind: "savedCard", travellerCardId }`
+- picking a saved bank confirms `{ kind: "savedBank", travellerBankTokenId }`
+- a typed IBAN confirms `{ kind: "newBank", iban }`
+- a mistyped IBAN does not enable Confirm
+
+**Widen `renderSheet`'s defaults** with `savedBanks: []` and
+`isLoadingTokens: false`, or every existing test in the file stops compiling.
+Drop the `vaultCard` default and any test asserting vault behaviour.
+
+- [ ] **Step 3: Run them and watch them fail**
+
+- [ ] **Step 4: Swap the step, retype the handler, delete what dies**
+
+`RefundPayoutStep` replaces `RefundCardStep`. At confirm, map the step's value to
+a payout: `value.payout` when set, otherwise `value.pendingCard` becomes
+`{ kind: "newCard", card: value.pendingCard }`. No vault, no async, no failure
+path — the confirm handler stays synchronous.
+
+Delete in this same commit, once nothing imports them:
+- `RefundCardStep.tsx` and `__tests__/RefundCardStep.router.test.tsx`
+- `vaultCard` from `useRefundHomeFlow.ts`, its `postTravellerCard` import, and
+  its tests in `__tests__/useRefundHomeFlow.router.test.ts`. It is now dead, it
+  handles raw PANs, and it depends on that unverified permission — leaving it in
+  the tree invites someone to wire it back up.
+- The five i18n keys Task 3 could not remove while `RefundCardStep` still read
+  them: `Refund.CardModeLive`, `Refund.CardModeRecord`, `Refund.CardUseAnother`,
+  `Refund.CardNoneSaved`, `Refund.CardSaved`. Also check `Refund.CardNumber` and
+  `Refund.CardExpiry` — Task 3 reports nothing but a test's fake translation map
+  references them; grep before deciding. Removing keys needs `npm run init` then
+  `npm run check:language-data`.
+
+- [ ] **Step 5: Pass the new props from `RefundSurface`**
 
 `savedBanks={flow.savedBanks}`, `isLoadingTokens={flow.isLoadingTokens}`, and
 `handleConfirm` retyped to `RefundPayout | null`.
 
-- [ ] **Step 4b: Give the sheet a computed height, one detent**
+- [ ] **Step 6: Give the sheet a computed height, one detent**
 
 **This is a known project trap, not a precaution.** The sheet now has text
 fields (card number, expiry, and three IBAN fields) AND a list that grows when
@@ -620,20 +671,21 @@ Jest cannot catch any of this. Note in your report that it needs device QA, and
 that the QA must include **closing and reopening** the sheet, because a stale
 measurement survives a fast refresh and only shows up on a cold open.
 
-- [ ] **Step 5: Full verification**
+- [ ] **Step 7: Full verification**
 
 - `npx jest` — all suites green
 - `npx tsc --noEmit` — back to exactly the one pre-existing error
 - `npx eslint src` — 0 errors
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/screens/shared/Tags/Tag/_components/refund/
+git add src/screens/shared/Tags/Tag/_components/refund/ src/localization/resources/
 git commit -m "feat(refund): pay a saved token, a captured card, or a typed IBAN
 
-Only a card captured at the desk is vaulted; the other three destinations go
-straight to the refund."
+Each destination writes exactly one CreateRefundDto field. Nothing is written
+to the traveller's account: a card captured at the desk travels as a masked
+paidCardDetail, as the spec's table always said."
 ```
 
 ---
