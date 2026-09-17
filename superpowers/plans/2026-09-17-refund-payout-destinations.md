@@ -418,7 +418,6 @@ token."
 **Files:**
 - Create: `src/screens/shared/Tags/Tag/_components/refund/RefundPayoutStep.tsx`
 - Create: `src/screens/shared/Tags/Tag/_components/refund/__tests__/RefundPayoutStep.router.test.tsx`
-- Delete: `RefundCardStep.tsx` and its test (Task 4 removes the last reference)
 - Modify: `src/localization/resources/{en-US,tr-TR}.json`
 
 **Interfaces:**
@@ -489,7 +488,10 @@ Mock the capture modals with the **`@/screens/traveller/...` alias form** and mo
 
 - [ ] **Step 3: Run them and watch them fail**
 
-- [ ] **Step 4: Build the component, then delete `RefundCardStep`**
+- [ ] **Step 4: Build the component**
+
+Leave `RefundCardStep.tsx` in place — Task 4 deletes it in the same commit
+that removes its last import, so no commit leaves an unresolvable module.
 
 Keep it under ~350 lines; if it runs longer, the row renderer wants extracting into a sibling file.
 
@@ -514,6 +516,7 @@ button stay in reach."
 
 **Files:**
 - Modify: `RefundConfirmSheet.tsx`, `RefundSurface.tsx`
+- Delete: `RefundCardStep.tsx` and `__tests__/RefundCardStep.router.test.tsx`
 - Test: `__tests__/RefundConfirmSheet.router.test.tsx`, `__tests__/RefundSurface.router.test.tsx`
 
 **Interfaces:** consumes everything above. `onConfirm` becomes `(payout: RefundPayout | null) => void`.
@@ -533,7 +536,8 @@ The vault behaviour is unchanged in kind but now applies only to `pendingCard`:
 
 - [ ] **Step 3: Swap the step and retype the handler**
 
-`RefundPayoutStep` replaces `RefundCardStep`. The confirm handler vaults only
+`RefundPayoutStep` replaces `RefundCardStep` — delete `RefundCardStep.tsx` and
+its test in this same commit, once nothing imports them. The confirm handler vaults only
 when `value.pendingCard` is set; every other destination confirms directly. A
 refused vault returns without confirming, leaving the sheet open with the
 captured card intact.
