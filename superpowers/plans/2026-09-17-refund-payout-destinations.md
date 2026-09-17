@@ -151,8 +151,24 @@ describe("the payout destination picks the DTO field", () => {
  * usable one behind a tap.
  */
 describe("sortPayoutTokens", () => {
-  const t = (id: string, over: Record<string, unknown> = {}) =>
-    ({ id, isDefault: false, isExpired: false, expiryYear: 2030, expiryMonth: 1, ...over }) as never;
+  // NOT `as never` like the helpers above: sortPayoutTokens is generic, so a
+  // `never` element infers T = never, the result is never[], and every
+  // `out[0].id` below fails to typecheck while jest still passes.
+  type Token = {
+    id: string;
+    isDefault: boolean;
+    isExpired: boolean;
+    expiryYear: number;
+    expiryMonth: number;
+  };
+  const t = (id: string, over: Partial<Token> = {}): Token => ({
+    id,
+    isDefault: false,
+    isExpired: false,
+    expiryYear: 2030,
+    expiryMonth: 1,
+    ...over,
+  });
 
   it("puts the default first", () => {
     const out = sortPayoutTokens([t("a"), t("b", { isDefault: true }), t("c")]);
