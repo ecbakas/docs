@@ -160,13 +160,18 @@ The resolution, decided 2026-09-17: **ask the backend to add `payoutTokenId` to
 the `tags-refund` row.** The endpoint already has the tag. With the field
 present, option 2 costs zero extra requests and is exact.
 
+**Requested 2026-09-17** against `GET /api/tag-service/tag/tags-refund`. Option
+2 is therefore parked on a change already in flight, not on an open question —
+resume it when the field appears in a regenerated SDK.
+
 Rejected alternative: fetching tag detail per selected tag. One request per
 ticked row, and it raises a question the product has not answered — a refund is
 one payout to one card, but three selected tags may name two different cards.
 
-**Ships in two parts.** Options 1 and 3 and the mode selector land now. Option 2
-is a row in the same picker, added when the field exists. No client work is
-thrown away.
+**Ships in two parts, and part one is what gets built.** Options 1 and 3 and the
+mode selector land now. Option 2 is one more row in the same picker, added when
+the field appears. Nothing built now is thrown away by it: the picker renders a
+list of card choices, and option 2 adds an entry to that list.
 
 ## Testing
 
