@@ -623,6 +623,7 @@ export const TagRow = React.memo(function TagRow({
     </Pressable>
   );
 });
+```
 
 - [ ] **Step 4: Run test to verify it passes**
 
