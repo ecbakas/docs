@@ -19,6 +19,38 @@ cannot run it. This phase is designed to make that switch a JS-only change:
 the availability check and the fallback-relevant error codes ship now, so the
 later switch needs no native rebuild.
 
+## REVISED 2026-09-24 — native-first "Scan card" is built on this branch
+
+The user pulled the fallback phase in before device testing:
+
+1. "Native scan" is renamed back to **"Scan card"**. There is one scan tile.
+2. The picker checks, once on mount, whether native scanning is usable, with
+   `CardScannerModule.isAvailableAsync()`. It is usable only when all of these
+   hold:
+   - the module is in the build;
+   - it reads real cards: each native module now exposes an `environment`
+     constant, and Google Pay **TEST counts as unavailable** because it
+     returns a placeholder;
+   - `isSupportedAsync()` passes.
+3. Pressing "Scan card":
+   - **Native usable:** it opens the native scanner. Any failure except a
+     cancel is logged and falls back to the existing OCR scan, and the picker
+     then stays on OCR.
+   - **Not usable, or the check has not resolved yet:** it opens the OCR scan
+     directly, as before.
+   - A result marked `test` is discarded, and OCR opens instead.
+
+Consequences:
+- **Android always uses the OCR scan** until the wallet environment is switched
+  to PRODUCTION, which needs Google Pay production access.
+- **iOS 16+ devices with DataScanner support go native.**
+- The separate tile, its error lines, the placeholder warning and the
+  placeholder Confirm gate are all removed, along with their seven i18n keys.
+  A TEST card can no longer reach the fields.
+
+This supersedes the "every build", separate-tile, error-caption and
+placeholder-warning parts of the UI section below.
+
 ## Decisions taken
 
 | Question | Answer |
