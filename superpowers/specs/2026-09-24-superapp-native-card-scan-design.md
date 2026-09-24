@@ -164,10 +164,12 @@ used) and `"device"` on iOS (on-device recognition, no environment).
 
 ## UI — `RefundPayoutStep.tsx`
 
-- The tile row is drawn twice today (sole-option branch and the "different
-  card" row) with identical JSX. It is extracted into one `CardCaptureTiles`
-  component in the same file. Tap and Scan are unchanged; **"Native scan"**
-  (`scan-outline`) is appended.
+- The card capture block (the tiles, both inputs and the hint) is drawn twice
+  today (sole-option branch and the "different card" row) with identical JSX.
+  It is written once as a JSX value and placed in both; only one renders at a
+  time. Tap and Scan are unchanged; **"Native scan"** (`scan-outline`) is
+  appended. *(Revised while planning: originally a `CardCaptureTiles`
+  component for the tile row only.)*
 - Pressing it sets `entry` to `"native"` and calls `startScan()`. The tile is
   disabled while a scan is in flight.
 - Success goes through the existing `applyScan`: the number via
@@ -175,7 +177,8 @@ used) and `"device"` on iOS (on-device recognition, no environment).
   only when both parts are present. Confirm's Luhn and expiry gate is unchanged.
 - Errors show as one `tone="error"` caption under the tiles. Toasts render
   behind this Modal, so they are not an option. The caption clears on the next
-  tile press or on success. `E_CANCELLED` shows nothing.
+  tile press or on success. `E_CANCELLED` shows nothing, and neither does
+  `E_BUSY`: it only means the first scan is still open.
 - A `"test"` result shows a `tone="warning"` caption under the card fields
   until the number is edited or another capture replaces it.
 
