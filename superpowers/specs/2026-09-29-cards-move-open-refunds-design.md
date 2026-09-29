@@ -285,3 +285,36 @@ Let `n = byCard[card.id]`.
   approximation in §1.
 - Confirm how the refund desk and `POST refunds` handle a tag pinned to a
   soft-deleted card.
+
+## Revision, 2026-09-29, after the live walkthrough
+
+**Finding.** `GET tag/cross-tenants/by-traveller-id-claim` never reports the live
+pin. `payoutTokenId` stayed `null` on all 73 of the test traveller's tags, both
+before and after a real pin that changed 24 of them in each direction. The
+field's docblock calls it the token "selected for this tag when it was created".
+`isLastUsed` did not follow the pin either. So the client cannot know which card
+any open tag pays to, and §1's `byCard` / `notOnCard` counts were always "all of
+them".
+
+**Decision (user, 2026-09-29).** A pin always moves every open tag at once, so the
+per-card question is unnecessary:
+
+- The client only learns **whether** open refunds exist, from the same fetch,
+  allowlist and red filter as §1. ssr computes this on the server and passes a
+  boolean, so the tag list no longer reaches the browser.
+- **No copy states a count.** The prompts ask to move *all* open refunds:
+  - after set-default: "{card} is now your refund card. Move all your open refunds to it as well?"
+  - after add: "It becomes your default card, and all your open refunds move to it."
+  - If a re-added card is already the default, the add prompt uses the set-default wording.
+- **The result toast** is "Your open refunds now go to {card}", whatever `changedCount` is.
+- **The mismatch line is removed.** It is the one piece that needed to know where
+  tags sit. It can return if the backend ever projects the live pin into this list.
+- **Delete, with open refunds:**
+  - deleting a non-hero card always moves them all onto the hero first;
+  - deleting the hero asks which card they go to;
+  - with no other usable card, it offers Add a card or Delete anyway.
+- **With no open refunds**, or while the list is loading or has failed, nothing is asked and nothing is called.
+
+Verified on dev: with this build, the delete confirm for a non-hero card reads
+"Before it's deleted, all your open refunds move to •••• 0013." Before the
+revision, the same card showed the plain confirm.
