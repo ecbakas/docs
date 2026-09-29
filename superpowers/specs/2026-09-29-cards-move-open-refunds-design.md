@@ -92,17 +92,20 @@ Request parameters:
 **Filter.** On the client, drop rows whose `risk.finalRiskLevel` is `Red`, or
 whose `risk.riskLevel` is `Red` when there is no `finalRiskLevel`.
 
-**Derive.** One pure function per app computes the counts:
+**Derive.** Pure functions per app compute the counts:
 
 ```ts
-openRefunds(tags, heroId) => {
+openRefunds(tags) => {
   count: number;                     // open tags after filtering
-  offHero: number;                   // open tags whose payoutTokenId !== heroId (null included)
   byCard: Record<string, number>;    // open tags per payoutTokenId
 }
+notOnCard(refunds, cardId) => number // open tags not pinned to cardId (null included)
 ```
 
-A `null` `payoutTokenId` counts as "not on the hero", because the desk resolves
+`notOnCard(refunds, hero.id)` is the "off the hero" count. The same function
+serves the add and set-default prompts, whose target is not the hero.
+
+A `null` `payoutTokenId` counts as "not on this card", because the desk resolves
 it through last-used before default.
 
 **Where the fetch lives.**
@@ -168,6 +171,14 @@ carries the retry.
 **Pin failure (set-default prompt, or the line).** "Couldn't move your open
 refunds." · [Try again] [Not now]. Nothing else has changed.
 
+**Where failure copy appears.**
+- ssr shows it inline in the dialog.
+- super-app shows it as a `toast.error` over the still-open sheet, and the
+  buttons change to [Try again] and [Not now] or [Close].
+- The reason: gorhom's dynamic sizing measures the sheet once and clips anything
+  that appears later. Toast uses `stackBehavior="push"`, so it does not
+  minimize the sheet under it.
+
 ## 3. Deleting a card that open refunds use
 
 Let `n = byCard[card.id]`.
@@ -195,7 +206,9 @@ Let `n = byCard[card.id]`.
 
 - super-app: the picker is Validate's `TokenList` from
   `shared/Tags/Tag/_components/refund/RefundPayoutRows`. It takes `t` as a prop,
-  so it is safe inside the sheet portal.
+  so it is safe inside the sheet portal. It renders `expanded`, with every choice
+  at once and no "show more", for the same can't-grow reason as the failure
+  toasts.
 - ssr: `CardOption` is private to `validate/_components/payout-card-step.tsx`.
   Lift it into `components/payout-cards/card-option.tsx`; Validate and the delete
   dialog both import it from there.
