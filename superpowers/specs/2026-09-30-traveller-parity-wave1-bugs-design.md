@@ -79,23 +79,14 @@ The rule is group + leaf.
 The test traveller holds all four policies, so nothing visibly changes for them.
 **Test:** `tag-grants.test.ts` under `test:unit` (group missing, leaf missing, both held).
 
-### S6. Correct the "never leaves the device" copy
-Both apps can send a card photo to the document-extraction service:
-- ssr always does (`card-extraction/actions.ts`);
-- super-app does after 5 unreadable frames, at most twice.
+### S6. "Never leaves the device" copy — DROPPED (user decision, 2026-09-30)
+Four strings say a card photo is read only on the device:
+- `DocumentCapture.Description`;
+- `Privacy.Collect.PaymentCard.Collected`, `Privacy.Collect.Camera.Collected` and `Privacy.Sharing.P3`.
 
-Four strings claim otherwise:
-- `language-data/core/Default/resources/en.json:3` `DocumentCapture.Description` ("No frame leaves this device");
-- `language-data/unirefund/SSRService/resources/en.json` `Privacy.Collect.PaymentCard.Collected` (:317, "the photograph is not uploaded");
-- the same file, `Privacy.Collect.Camera.Collected` (:329, "…the same is true of a photograph of a payment card");
-- the same file, `Privacy.Sharing.P3` (:360, "reading a payment card … from a photograph of it" listed as on-device).
-
-**Change:** reword those four sentences in en and tr so they say that a card photo which
-can't be read on the device may be sent to our document-reading service, which extracts
-only the card number and expiry. The privacy page's processor list names no
-document-extraction processor; add a `TODO(legal)` note there, like the existing ones,
-rather than inventing the processor's legal name.
-**Delivery:** flag the privacy wording in the PR description for legal review.
+Today both apps can send the photo to the document-extraction service. **The copy stays as
+it is.** The card-scan behaviour will be changed later so that the copy becomes true, so do
+not reword it in this wave.
 
 ## super-app
 
@@ -181,8 +172,8 @@ added the grant to the traveller role on 2026-09-30.
 
 **Three PRs:**
 1. `web-utils` — S3's provider change.
-2. `unirefund-web` — S1–S6 plus the `packages/utils` pointer bump. Merge after 1.
+2. `unirefund-web` — S1–S5 plus the `packages/utils` pointer bump. Merge after 1.
 3. `unirefund-mobile` — M1–M8.
 
-**Out of scope:** the unused `kyc.tsx` / classic-form dead code in ssr, the
+**Out of scope:** S6's privacy/capture copy (see above), the unused `kyc.tsx` / classic-form dead code in ssr, the
 sign-out-on-error behaviour (wave 5), and everything in waves 2–5.
