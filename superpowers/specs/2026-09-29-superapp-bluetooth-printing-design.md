@@ -138,3 +138,35 @@ through `expo-asset`; `metro.config.js` adds `pdf` to `assetExts`.
 iOS / BLE, network (9100) and USB printers, Star / TSPL / CPCL command sets,
 ReportService, printer status queries (paper out), and the page's permanent
 home.
+
+## REVISED 2026-09-30: where the branch stands (paused)
+
+Branch `feat/bluetooth-printing` @ `d88ffd0d` in `super-app-safe`: 14 commits, not merged.
+Gates: 298 suites green (3085 pass / 1 skipped), typecheck at the 1-error baseline, lint 0 errors.
+
+Added beyond the first design, each from device QA:
+
+| Change | Why |
+|---|---|
+| **Content-paced sending**: per-packet minimum time from black dots (`denseLineMs`, default 14 ms per full-black row) | The HM-E300's buffer overflowed on full-black header bars at a uniform pace. It printed image bytes as garbage letters and then powered off. It failed the same way on the charger (not power); 512 B/60 ms was clean, 512/30 failed. |
+| **Blank rows sent as `ESC J` feeds** | 23 % of the sample form is blank. |
+| **End of print**: dashed tear line + `feedMm` (15), or `GS V 66 0` alone on cutter printers | User asked for the end to clear the tear bar, plus auto-cut on cutter printers and a tear line. |
+| **`settleMs` wait after connect** (500) | The MTP-3's module dropped every byte written in the first ~20 ms. |
+| **20 s connect budget + Cancel** | An unreachable printer hung a job for about 70 s (3 methods × 2 rounds). |
+| **DLE EOT status** before and after, and **Check printer**; `E_PAPER_OUT` / `E_COVER_OPEN`; offline warning | Paper and connection error handling, as the user asked. |
+| **Wait for a status reply before disconnecting** | Closing early left the HM-E300 busy, so the next connect hung for about 12 s. |
+| **Forget** (unpair via hidden `removeBond`, falling back to system settings) | User asked for it. |
+| **Printer language: ESC/POS or CPCL** (CPCL pages with `CG` binary, 1024-row pages) | The Afanda MTP-3 speaks CPCL/ZPL, not ESC/POS (vendor page). |
+
+Device results on CPadNFC:
+
+- **HPRT HM-E300: done.** The sample PDF prints clean in about 16 s on battery, repeatedly. Status replies `16 12 12`.
+- **Afanda MTP-3 ("Yazici1", `12:13:14:15:16:17`): open.** It connects, and bytes arrive (ESC/POS and CPCL), but it prints nothing. Its ESC/POS status reply is `1a 12 12` = offline with no cause.
+
+Next steps for the MTP-3:
+
+1. Get its self-test page (hold FEED at power-on) for its mode and any error.
+2. Check whether the paper moves at all, and what its lights show.
+3. If it is healthy, add one-line "Hello" probes in ESC/POS, CPCL and ZPL to find what it answers.
+
+**Built on the device:** the APK from 16:02 has content pacing, settle and status, but not Cancel, the connect budget, Forget or wait-before-disconnect. The next `npx expo run:android --device OrderPAD_3 --no-bundler` in `super-app-safe` adds them. Close the 8096 Metro first.
