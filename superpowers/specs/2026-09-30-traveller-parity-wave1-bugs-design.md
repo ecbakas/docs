@@ -125,8 +125,9 @@ never posts it. Add document (`useTravellerDocuments.ts:118-146`) runs the same
 No traveller-scoped totals endpoint exists (`/tag/summary` is staff-only).
 
 **Change:** Home fetches the traveller's tags unpaged with `maxResultCount: 999` (the same
-bound `useHasOpenRefunds` uses), sorted `issueDate desc`, and derives both the summary and
-the latest tag from that list. The list screen's paging is untouched.
+bound `useHasOpenRefunds` uses), sorted `issueDate desc`, on each focus, and derives the
+summary from that list. Until the list lands, or if it fails, the summary uses the loaded
+page. The latest-tag card and the list screen's paging are untouched.
 **Test:** the `homeStatus.logic` tests already cover the derivation. Add a hook test that the summary reads the unpaged fetch, not the store page.
 
 ### M5. Payout counts match what is shown — *verified*
