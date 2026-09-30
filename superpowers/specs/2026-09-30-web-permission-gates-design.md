@@ -295,3 +295,15 @@ reaches it is covered by the audit alone and will be listed, not claimed.
 - Adding `apps/web`'s `test:unit` to CI (worth doing; separate change).
 - Backend changes, including permissions the backend enforces imperatively
   rather than by attribute — invisible to the docblocks, so to this design.
+
+## Changes made during execution (2026-09-30)
+
+Rulings taken while the plan ran, recorded so this document matches the code:
+
+- **Lookups on forms.** A create/edit form whose *required* fields depend on a lookup (address countries/admin areas, tax offices, a user picker) guards its page on the lookup's pair too; an optional section is hidden instead. The shared address widget (`packages/ui`) gained an optional per-level `grants` option so an ungranted lookup is never called; with nothing passed it behaves as before.
+- **Read-only forms are also disabled.** `readonly` alone leaves switches, comboboxes, selectables, date pickers and the password widget interactive, and a single-field form still submits on Enter. Every edit form without its grant uses `disabled` including the missing grant, plus an early return in its submit handler.
+- **Links and tabs.** A link into a page (RowLink, plain link, layout tab item) requires the target page's guard *and* the guard of every layout above it that guards its own fetch.
+- **Audit rule R1, per-symbol credit.** A file importing a plain `.ts` module is credited only with the gate literals behind the symbols it imports by name (namespace/default imports: whole module). Coverage is computed order-independently (reachability from ungated root files), not by a memoised walk.
+- **Audit parsing.** `anyOf` alternatives may be same-file constants; sidebar hrefs are matched without their query string; `isUnauthorized` and `requiredPolicies` no longer count as gates.
+- **Sidebar (R3).** Create actions nested under a list item inherit that item's `ViewList` at runtime; the 18 resulting mismatches are allowlisted with that reason (the shortcut is hidden from create-only users; no link leads to a denial).
+- **Out of scope, reported:** `management/notification-center` lets any signed-in user trigger a Novu notification with the server key — needs a server-side check in `packages/actions`.

@@ -2007,7 +2007,7 @@ export function canUpsertAddress(
 }
 ```
 
-The audit reads a same-file constant passed to a gate call, and counts every gate literal of a `.ts` module the component imports. A bare exported table with no gate call in its module is **not** read — the keys `merchants` etc. are not gate properties.
+The audit reads a same-file constant passed to a gate call. From a `.ts` module it credits the importing component only with the gate literals behind the symbols it imports by name (the helper's own gate calls and the constants they reference); a namespace or default import credits the whole module (changed in Task 19 — importing an unrelated symbol used to credit everything). A bare exported table with no gate call in its module earns no credit, even when the importer gates on it — import the helper, not the table.
 
 **P8 — stale permission badges.** Once a page guards itself, delete `missingPolicies={[…]}` from its `ErrorComponent`s — an error after the guard is not a permission error.
 
