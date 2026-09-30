@@ -106,8 +106,13 @@ nothing in `apps/web` imports it after the sweep.
 
 **`guardPage({ requires, lang })`** — `src/components/permission-guard/guard.tsx`,
 server only. Reads grants via `getApplicationConfiguration()`, returns `null`
-when satisfied, otherwise the `<NoPermission>` element. Usage in `page.tsx` or
-a `layout.tsx` whose children all share the requirement:
+when satisfied, otherwise the `<NoPermission>` element.
+
+**Every `page.tsx` guards itself; a layout guard never stands in for it.**
+Next's partial rendering does not re-render a layout when navigating between
+its child pages, so a check in a layout does not run for the second page a user
+opens under it. A `layout.tsx` guards only the fetches it makes itself (e.g.
+the airport layout's `getAirportByIdApi` for the breadcrumb). Usage:
 
 ```tsx
 const denied = await guardPage({
@@ -157,8 +162,9 @@ generated or committed, so nothing goes stale after an SDK regen.
 - *Endpoint → permissions* from every `packages/{saas,core-saas}/*/sdk.gen.ts`
   docblock paired with its `public <method>(`. Endpoints with no line require
   only authentication and are skipped. A docblock permission missing from
-  `packages/utils/policies/policies.json` is reported — it cannot be written as
-  a literal.
+  `packages/utils/policies/policies.json` is printed as a **warning** (it cannot
+  be written as a literal, but it is backend drift, not a defect in the PR, so
+  it does not fail the run).
 - *Action → endpoint* from `packages/actions`: each exported function and the
   SDK method it calls. Actions with none are skipped.
 - *App code* parsed with the TypeScript compiler API against `apps/web`'s
@@ -174,9 +180,9 @@ generated or committed, so nothing goes stale after an SDK regen.
 
 | #   | Rule | Catches |
 | --- | ---- | ------- |
-| R1 | Every call to an action whose endpoint requires `P` is **covered**: its own file has a gate naming all of `P`, or *every* file importing it is covered. A `page.tsx` also counts gates in its ancestor `layout.tsx` files. | ungated buttons, row actions, forms and client fetches; leaf-only gates |
+| R1 | Every call to an action whose endpoint requires `P` is **covered**: its own file has a gate naming all of `P`, or *every* file importing it is covered. A file nothing imports (a route file: `page`, `layout`, `route`, `default`, `template`) must cover itself — ancestor layouts do not count, per the partial-rendering rule above. | ungated buttons, row actions, forms and client fetches; leaf-only gates; pages leaning on a layout's guard |
 | R2 | Every `page.tsx` under `(main)` calls `guardPage`, or is allowlisted with a reason (account pages, home, `/unauthorized`). | pages closed only by hiding the link, which a pasted URL still opens |
-| R3 | A sidebar item in `src/components/sidebar-layout/data.ts` whose `href` resolves to a page requires exactly what that page's `guardPage` requires. | menu links into a forbidden screen; links hidden from someone who could open the page |
+| R3 | A sidebar item in `src/components/sidebar-layout/data.ts` whose `href` resolves to a page has an **effective** requirement — its own `policies` plus every ancestor item's, since a denied parent hides its whole subtree — equal to that page's `guardPage` set (for an `anyOf` page: contained in every alternative). | menu links into a forbidden screen; links hidden from someone who could open the page, including by a parent gated on an unrelated permission |
 
 "Every importer" in R1 means a shared component reached from three routes is
 covered only when all three gate it — the correct rule when different users
@@ -204,20 +210,20 @@ below for the page → requirement map).
   `tax-free-tags/[tagId]/page.tsx`); `TagsNameSpace.ViewEarnings` and
   `.ViewTotals` are display-only and stay single-policy.
 
-**Tests** (`node --test scripts/lib`): gated call; leaf-only gate; shared
+**Tests** (`node --test scripts/lib/policy-audit-core.test.mjs`): gated call; leaf-only gate; shared
 component gated by only some importers; gate via imported constant; ancestor
 layout gate; stale allowlist entry; docblock permission absent from
 `policies.json`.
 
 ### 3. Sweep and delivery
 
-**Phase 1 — foundation (PR 1).** `policies.ts` + tests, `guardPage`,
+**Phase 1 — foundation.** `policies.ts` + tests, `guardPage`,
 `<NoPermission>`, i18n keys, localized `/unauthorized`, the audit + its tests +
 empty allowlist, and two reference conversions: airport details (leaf-only →
-pair, read-only form) and `devices` (no guard → `guardPage`). The PR records the
+pair, read-only form) and `devices` (no guard → `guardPage`). The commit message records the
 baseline audit count.
 
-**Phase 2 — sweep (one PR per area).** Areas own disjoint files so they can run
+**Phase 2 — sweep, one commit series per area.** Areas own disjoint files so they can run
 in parallel:
 
 1. shared `src/components/**` — first, because under R1 their gaps surface in
@@ -234,20 +240,22 @@ conditions; read-only forms; Create-guarded `new/`; the blind-spot list above.
 Phase 1 lands every i18n key the sweep needs; if a task needs another, it
 edits only its own service's resource files and `init` runs once, centrally.
 
-`guardPage` and `isUnauthorized` coexist, so each area merges independently
-without breaking `main`.
+`guardPage` and `isUnauthorized` coexist, so any prefix of the work is
+shippable without breaking `main`. All phases land on the one branch
+`feat/permission-gates` (the user's instruction); whether it goes up as one PR
+or is split by area is decided at the finishing step.
 
-**Phase 3 — lock in (last PR).** Audit at 0 violations, every allowlist entry
+**Phase 3 — lock in.** Audit at 0 violations, every allowlist entry
 reasoned; add a step to `lint-pull-requests.yml` running
-`node --test scripts/lib` and `pnpm policy:audit`.
+`node --test scripts/lib/policy-audit-core.test.mjs` and `pnpm policy:audit`.
 
 ### 4. Verification
 
-1. **Gates per PR:** `pnpm --filter web type-check`, `pnpm --filter web lint`,
-   `pnpm --filter web test:unit`, `node --test scripts/lib`,
+1. **Gates per phase:** `pnpm --filter web type-check`, `pnpm --filter web lint`,
+   `pnpm --filter web test:unit`, `node --test scripts/lib/policy-audit-core.test.mjs`,
    `pnpm policy:audit` (at or below the previous count; 0 at the end).
 2. **uat permission names:** the sweep writes hundreds of new literals and dev
-   still defines names uat has dropped. Before each PR:
+   still defines names uat has dropped. Before finishing:
    `GATEWAY_URL=https://uat-api.unirefund.com SUPPORTED_LOCALES=en,tr pnpm --filter web run init`
    then `npx tsc --noEmit -p apps/web`, so every unknown literal shows at once
    instead of one per uat build. Re-run `init` against dev afterwards, and
