@@ -81,6 +81,7 @@
 | `apps/ssr/src/components/shell/surface.tsx` | new |
 | `apps/ssr/src/components/shell/tab-page.tsx` | new |
 | `apps/ssr/src/components/shell/shell-context.tsx` | new |
+| `apps/ssr/src/components/shell/notification-config.ts` | new, server-safe |
 | `apps/ssr/src/components/shell/tab-island.tsx` | new |
 | `apps/ssr/src/components/shell/scan-overlay.tsx` | new |
 | `apps/ssr/src/components/shell/page-header.tsx` | new |
@@ -632,6 +633,7 @@ EOF
   - `apps/ssr/scripts/gen-ionicons.mjs`
   - `apps/ssr/src/components/shell/ionicons.tsx` (generated)
   - `shell-context.tsx`
+  - `notification-config.ts`
   - `tab-island.tsx`
   - `scan-overlay.tsx`
   - `tab-page.tsx`
