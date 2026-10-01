@@ -51,4 +51,14 @@ Each wave gets its own spec → plan → build.
     - the userinfo verification fetch has no timeout;
     - a pre-existing jwt `update` callback issue is to be tracked privately;
     - review minors are listed in the wave 1 spec's PRs.
-- **Wave 2 (tags):** not started. It needs two decisions first: the row's headline amount, and whether the anonymous public tag page shows traveller data.
+- **Wave 2 (tags): PRs open 2026-10-01.** See [wave 2 spec](2026-10-01-traveller-parity-wave2-tags-design.md).
+  - Decisions: rows lead with the purchase amount; the public tag page hides the traveller block; number-plus-passport lookup is linked in neither app.
+  - unirefund-web #311: ssr, on top of current `main`.
+  - unirefund-mobile #65: stacked on #64 (`feat/traveller-web-parity`). Retarget it to `main` once #64 merges.
+  - Follow-ups:
+    - a backend `refundExpirationDate` on `TagPublicDetailDto`, so the detail page can show the refund deadline that the list chip already shows;
+    - "1 days overdue" pluralisation in both apps;
+    - a `useResumePendingScan` test;
+    - on the public page, the duplicate tag number and the back arrow to `/tag` (product call);
+    - a backend item about the public tag endpoints' response, to raise privately.
+  - Not verified: the ssr "Already validated" group, and validate's claim paths on a device (both need an airport QR).
