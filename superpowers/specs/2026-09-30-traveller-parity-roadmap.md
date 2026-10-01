@@ -40,3 +40,15 @@ Each wave gets its own spec → plan → build.
 - Gate every action by its endpoint's group + leaf grant; no control without the grant (memory `gate-every-action-by-grant`).
 - The user runs native builds. JS-only changes are verified through Metro on CPadNFC.
 - `packages/utils` is a submodule: a change there is a `web-utils` PR first, then a pointer bump.
+
+## Status
+
+- **Wave 1 (bugs): done 2026-10-01.**
+  - web-utils #51 is merged (merge commit `fa3b8b6`).
+  - unirefund-web: the 6 ssr commits reached `main` at `5deb213e5` via an automated push before a PR could be opened. The user kept them there.
+  - unirefund-mobile #64 is open (11 commits).
+  - Follow-ups:
+    - the userinfo verification fetch has no timeout;
+    - a pre-existing jwt `update` callback issue is to be tracked privately;
+    - review minors are listed in the wave 1 spec's PRs.
+- **Wave 2 (tags):** not started. It needs two decisions first: the row's headline amount, and whether the anonymous public tag page shows traveller data.
