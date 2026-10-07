@@ -176,7 +176,7 @@ Rows are sorted with `sortPlaces`. The selected row is highlighted. Rows are but
 
 **Locate on open (user, 2026-10-07).** The map asks for the traveller's location as soon as it opens.
 - **Granted:**
-  - `userLocation` is stored, and the map jumps to the position at Locate's zoom.
+  - `userLocation` is stored, and the map jumps to the position at city zoom (12). The Locate button keeps 15 (user, 2026-10-07: at 15 the window is a few streets, so the list usually opens empty).
   - The list sorts nearest-first and shows distances.
 - **Not granted** (denied, unavailable, unsupported, or a 10 s timeout): nothing changes. The map keeps today's start (Istanbul, zoom 9), and **no** toast or banner appears, because the traveller didn't ask for anything.
 - **The traveller moves first.** If they pan, zoom, search or pick a row before the position arrives, the position is still stored for distances, but the map is **not** moved.

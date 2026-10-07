@@ -84,7 +84,7 @@ These are rulings on points the spec leaves open, or where its wording conflicts
    - web-app commits the bumped `packages/utils` pointer. This is intended, and is an exception to the usual "never commit submodule pointers" rule.
    - The `web-utils` PR merges before the web-app PR.
 2. **List takes the sector button's slot.** The control chain's `BlobRow` geometry is fixed at 2·1·2. On wide screens, List shows and hides the results panel.
-3. **Locate-on-open jumps (no animation) at Locate's zoom,** as the spec says: `max(current, 15)`. `ExploreMapHandle.jumpTo(center)` mirrors `flyTo(center)`.
+3. **Locate-on-open jumps (no animation) at city zoom:** `max(current, 12)` (user, 2026-10-07, after the final review; the plan first used Locate's 15). `ExploreMapHandle.jumpTo(center)` mirrors `flyTo(center)` with its own zoom.
 4. **The spec's `Explore.Results.Empty` is not added.** The empty state reuses `Explore.Empty` ("No places in this area."), and "Try again" reuses `TryAgain`. That leaves 15 new keys rather than 16.
 5. **Pin and row test ids use the pin key** (`layer:id:addressId`), because one merchant can have several pins.
 6. **`sectors.ts` keeps `SectorOption` and `mergeSelectedSector`,** which the kept `sector-sheet.tsx` imports. The spec lists `mergeSelectedSector` for removal, but it also keeps the sheet, so the sheet wins. Only the pin-derived option helpers go.
