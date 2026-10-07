@@ -174,10 +174,19 @@ The surviving `public/refund-points/viewport` and `public/exit-points/viewport` 
 
 Rows are sorted with `sortPlaces`. The selected row is highlighted. Rows are buttons with the test id `explore-place-row-{id}`.
 
-**Locate (Mavi's "find the nearest").**
-- On success, today's Locate button stores `userLocation` and flies the map there.
+**Locate on open (user, 2026-10-07).** The map asks for the traveller's location as soon as it opens.
+- **Granted:**
+  - `userLocation` is stored, and the map jumps to the position at Locate's zoom.
+  - The list sorts nearest-first and shows distances.
+- **Not granted** (denied, unavailable, unsupported, or a 10 s timeout): nothing changes. The map keeps today's start (Istanbul, zoom 9), and **no** toast or banner appears, because the traveller didn't ask for anything.
+- **The traveller moves first.** If they pan, zoom, search or pick a row before the position arrives, the position is still stored for distances, but the map is **not** moved.
+- **The request is made once per page load,** when the map has loaded (from MapLibre's `load` callback; no setState in an effect body).
+- **The decision is pure and tested.** `autoLocateCenter(position, userMoved)` returns the centre to jump to, or `null`.
+
+**Locate button (Mavi's "find the nearest").**
+- On success, it stores `userLocation` and flies the map there, as today.
 - The list then sorts nearest-first and shows distances.
-- On failure, behaviour is unchanged: the localized toast.
+- On failure, it shows the localized toast, as today. The button is an explicit request, so a failure is reported.
 
 ## Section 3: the map, search and detail
 
@@ -276,6 +285,10 @@ Both endpoints are anonymous, and `/explore` stays public.
   - back returns to the list.
 - **Search:** a store suggestion selects the store, and a place suggestion flies the map.
 - **Locate:** it sorts the list and shows distances. Use a mocked position in Chromium.
+- **Locate on open:**
+  - With geolocation granted, opening `/explore` starts at the mocked position.
+  - With it denied, the map starts over Istanbul with no toast.
+  - Panning before the position arrives keeps the panned view.
 - **Merchant detail:** it shows the headquarter, sectors, address, phone and e-mail, and Get directions opens Google Maps.
 - **Clusters:** a zoomed-out window crossing the threshold shows sized bubbles and the clustered status line. If dev data never crosses the threshold, this is recorded as not verified.
 - **Unserved:** open sea shows the unserved banner and status.
