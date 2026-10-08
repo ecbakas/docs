@@ -113,3 +113,18 @@ Every consumer of the approved `sessionId` (`getTravellerEmail`, `signInWithDidi
 ## Branches
 
 Both repos' checkouts are on `feat/map-improvement`, which is another session's work. Each repo gets `feat/didit-backend-sessions` from `origin/main`, in a worktree outside the repo.
+
+## pos-app (added 2026-10-08)
+
+pos-app held no Didit API key, but its "Verify & Scan" ran `startVerificationWithWorkflow` on a workflow ID hardcoded in `src/config/defaults.ts` and editable per terminal in Device Settings. The SDK created the session on the terminal, bypassing the backend's account choice and failover.
+
+**Decisions (user, 2026-10-08):**
+
+1. **Same flow as super-app.** The level comes from `evidence-level-requirements` for the `ScanDocument` action. Then `POST public-didit-sessions`, then `startVerification(sessionToken, config)`. The MRZ result is read from `GET public-didit-sessions/{id}`, which replaces `query-didit-session` and returns the same `DiditSessionOutputDto`.
+2. **Tenant context, not anonymous.** pos-app keeps its signed-in KYC client for both calls. The merchant's tenant therefore picks the Didit account: the tenant's own accounts first, then the shared ones. The create and the read share that context.
+3. **Errors.** `010022` and `010025` show the existing "Verification Unavailable" alert with a new "try again later" message. An unknown level is unavailable too. Anything else shows the existing error alert.
+4. **The workflow ID goes.** It leaves the config defaults, the Device Settings field and its two i18n keys, and the merchant store's per-user preferences (field, setter, migration line). A value a terminal already saved is ignored.
+5. **SDK 3.2.0 → 4.7.3, Android variant `all`.** That keeps today's features (auto capture and the NFC chip). It costs the wallet stack (about +37 MB debug on super-app) and requires porting super-app's `withBackupRulesOverride.js`, because pos-app also uses expo-secure-store. The SDK config matches super-app: `languageCode`, `showCloseButton`, `showExitConfirmation`, and `loggingEnabled: __DEV__` instead of always on.
+6. **Native rebuild.** The SDK upgrade needs one; the user runs it. Device proof on the V3 waits for that build and for the dev backend's 010024 fix.
+
+Branch `feat/didit-backend-sessions` from `origin/main`, worktree `C:/unirefund/pos-app-wt-didit`. Same merge gate as the other two.
