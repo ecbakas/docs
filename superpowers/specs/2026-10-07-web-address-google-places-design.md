@@ -39,6 +39,12 @@ swagger (checked 2026-10-07).
 - **Errors:** `033001` not configured (503), `033002` unknown place (404),
   `033003` Google unreachable (502), `033004` daily limit (429).
   `structuredError` keeps the code as `UniRefund.CRMService:0330xx`.
+- **A 502 never arrives with its code.** Cloudflare in front of dev-api replaces
+  an origin 502 with its own `text/plain` body `error code: 502`
+  (`Server: cloudflare`), so 033003 reaches the client as a bare status with no
+  JSON. Measured 2026-10-08: a malformed `placeId` got ABP's JSON 400 through
+  the same route; a real one got Cloudflare's 502. The status fallback in
+  `placeErrorKind` is therefore load-bearing, not a nicety.
 
 There is **no autocomplete endpoint**. The backend only resolves a place the
 user has already picked, so the as-you-type suggestions come from Google through
@@ -288,6 +294,15 @@ The `Google Maps` attribution is deliberately not a key.
 - The unused `CascadingAddressField`.
 
 ## Notes for the backend
+
+- **dev's resolve fails today.** On 2026-10-08, as the Faroe Islands `admin`
+  (who holds both `AddressPlaces` permissions), resolving a known place id
+  (`ChIJN1t_tDeuEmsRUsoyG83frY4`) answered 502 twice — probably 033003, but
+  Cloudflare hides the body. It is not 033001: that is a 503, which Cloudflare
+  passes through. Ask the backend what Google returned; a Google project
+  without billing answers every Maps call with a denial.
+- Consider giving 033003 a status other than 502 (or exempting the route at
+  Cloudflare), so its code and localized message reach clients.
 
 - Google's terms exempt **`placeId`** from caching limits but **not
   latitude/longitude**. The backend asks for both to be saved with the address;
