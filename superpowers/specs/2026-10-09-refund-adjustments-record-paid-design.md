@@ -48,7 +48,7 @@ The SDK audit of 2026-10-09 found RefundService routes that reached web-app thro
   - delta: positive is green with "Underpaid", negative is red with "Overpaid", zero is neutral
   - status badge
 - **Filters** (`createServerFilters`):
-  - status (enum options; the page defaults the query to `Open` when the URL has no `status`)
+  - status: a single select of Open, Acknowledged, Settled and **All**. When the URL has no `status`, the query is `Open`. `status=All` sends no status, so all three show. Without an explicit All, clearing the filter would only bring Open back.
   - the arisen date range (`dateRange("arisenAt", "arisenFrom", "arisenTo")`)
   - `refundId` and `tagId` when they come from a link
 - **Open count:** the header shows "{n} open" from `open-count` when the caller holds `.ViewOpenCount`. If that request fails, the count is simply left out. There is no sidebar badge.
@@ -80,7 +80,7 @@ The DTO carries user ids only, so the timeline shows dates, not names. The Ackno
   - Open → both
   - Acknowledged → settle only
   - Settled → none
-- `withDefaultStatus(searchParams)`: adds `status: "Open"` when no status is given.
+- `toAdjustmentQuery(searchParams)`: maps a missing `status` to `"Open"` and `"All"` to no status, and passes every other parameter through.
 - `isSettleNoteValid(note: string): boolean`: the trimmed note is not empty.
 
 ## B. Recording a refund paid outside the system (refund desk)
