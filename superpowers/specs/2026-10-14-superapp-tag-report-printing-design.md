@@ -10,6 +10,16 @@ report service and puts it behind the tag's Print button.
 UI mockups the user chose from: <https://claude.ai/artifact/A6qtb96YKCM6GQUmk2PM5Q>.
 **Option B (two steps) was chosen.**
 
+> **Update 2026-10-14, after device QA. Supersedes the connected-devices parts below.**
+> The connected-devices group was **removed** (user decision; DeviceService printing comes
+> later). Nothing in the workspace handles the `PrintTag` command, so it could never print.
+> `print` now needs `ReportService.Reports` + `.CreateSynchronously` **and**
+> `canPrintLocally`, and step 1 lists only the saved Bluetooth printers. Also found on dev:
+> the export answers 403 `UniRefund.ReportService:010020` to customs and refund-point users
+> despite their grants (the app shows "Only the tag's merchant can print this tag"), and
+> device presence needs `DeviceService.Commands` + `.Monitoring.View`, which no test
+> merchant holds.
+
 ## Goal
 
 On a tag's detail page, staff tap **Print**, pick **where** (one of their Bluetooth
