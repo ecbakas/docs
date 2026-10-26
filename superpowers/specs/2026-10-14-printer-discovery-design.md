@@ -34,7 +34,7 @@ An admin must be able to set up a label printer without knowing what an IP addre
 - **Unchanged security rules:** the Origin and Host allowlists and the 127.0.0.1-only listener stay exactly as they are.
 - **Old portal builds keep working:** `GET /printers?scan=1` and `POST /print` with a `target` stay as they are.
 - **Out of scope:**
-  - Bluetooth, serial (COM) and macOS;
+  - Bluetooth and serial (COM);
   - Bonjour/mDNS, which Zebra doesn't document (research §6);
   - IPP;
   - changing printer settings. The helper only reads from printers.
@@ -124,8 +124,8 @@ Four sources run in parallel, and their results are merged by IPv4 address.
 | Source | How | Gives |
 |---|---|---|
 | Port sweep | TCP connect to `:9100`, 1.5 s timeout, up to 256 concurrent, then close **without sending a byte** | "accepts raw printing" |
-| SNMP | One SNMPv1 GET to every candidate address, community `public`, OIDs sysDescr `1.3.6.1.2.1.1.1.0`, sysName `.1.5.0`, Zebra model `1.3.6.1.4.1.10642.1.1.0`, Zebra serial `1.3.6.1.4.1.10642.1.9.0`. Wait 2 s total | description, model, serial |
-| Zebra discovery | UDP `2E 2C 3A 01 00 00` to `255.255.255.255:4201` and each adapter's directed broadcast, 3 rounds 1 s apart. Replies are de-duplicated by source IP | "a Zebra is here"; firmware, serial and system name when the reply parses (layout from old print servers; parse defensively, research §1) |
+| SNMP | One SNMPv1 GET of sysDescr `1.3.6.1.2.1.1.1.0` to every candidate address, community `public`. Wait 2 s total. Phase 1 asks for sysDescr only, because an SNMPv1 GET for several OIDs fails as a whole when one is missing (the Argox has no Zebra OIDs). A Zebra's model and dpi come from its description and its own answers | description (model and dpi for Zebras) |
+| Zebra discovery | UDP `2E 2C 3A 01 00 00` to `255.255.255.255:4201` and each adapter's directed broadcast, 3 rounds 1 s apart. Replies are de-duplicated by source IP | "a Zebra is here". Phase 1 doesn't parse the reply's fields: the layout is known only for old print servers (research §1) |
 | Neighbour table | The `arp` tool after the sweep, so the probed hosts are in the cache: `arp -a` on Windows, `arp -an` on macOS. It needs no admin rights and is parsed by address only, so localised headers don't matter. Chosen over `GetIpNetTable2` when the plan was verified, because it also works on macOS | MAC → maker through the OUI table (research §8: Zebra Technologies OUIs, Argox `78:5F:4C`). Only for hosts on the adapter's own subnet; routed hosts show the gateway's MAC, which must never be attributed to the printer |
 
 ### 4.3 Recognising a candidate
@@ -155,9 +155,11 @@ Steps run in this order, and later steps fill only fields still unknown:
 Everything else is listed as an other printer.
 
 **Printer id.** The first available of:
+- `mac:<MAC>`, same subnet only, and only when no other address in the neighbour table shares that MAC (range extenders, VMs and proxy ARP do);
 - `zebra:<serial>`;
-- `mac:<MAC>`, same subnet only;
 - `ip:<host>:<port>` (no re-finding possible).
+
+The hardware address comes first, so a Zebra that is out of labels or slow to answer keeps its id and still prints (§11). This was revised after the phase 1 review; the first draft put the serial first.
 
 **Logging.** Raw identification replies (model strings, SNMP descriptions, discovery fields) are logged at Information. They are printer metadata, not label data, and they let us debug a client's search from their log file.
 
@@ -256,7 +258,7 @@ Printer problems come from the status endpoint, not from `/print`.
 
 1. Origin and Host checks: unchanged.
 2. **By printer id**, the helper prints only to printers in its own registry: the in-memory results of its searches since start. The web can't name a device path, a queue it didn't list, or an arbitrary host:port.
-3. **After a helper restart** (empty registry), a `printerId` plus `lastAddress` is accepted only after verification. The helper checks the address belongs to that id (same MAC in the neighbour table, or the same Zebra serial). If it can't, it runs a search.
+3. **After a helper restart** (empty registry), a `printerId` plus `lastAddress` is accepted only after verification. For a `mac:` id, the helper checks the neighbour table shows that MAC at the address and nowhere else. A `zebra:` id is never verified by asking the device: it prints where a search in the last 30 s saw it, and otherwise the helper searches. If verification fails, it runs a search.
 4. **Ports:**
    - 9100 is always allowed for private IPv4, as today;
    - any other port only when the printer itself reported it (`ip.port` getvar or a discovery reply) and it's recorded in the registry. **Phase 1 prints on 9100 only**: the reported port can only be read over 9100 itself, and the discovery reply carries none;
@@ -268,7 +270,7 @@ Printer problems come from the status endpoint, not from `/print`.
 
 When printing to a network printer by id:
 
-1. **Check the last address.** Is the printer at `lastAddress` (or the registry's address) the same one, with the same MAC or the same serial? If yes, print.
+1. **Check the last address.** For a `mac:` id: does the neighbour table show that MAC at `lastAddress` (or the registry's address), and only there? If yes, print. A positive check is reused for 60 s, so the jobs of one run don't each open a connection. For a `zebra:` id, see §7.3.
 2. **If it's unreachable or a different device:** run a search, or reuse one finished less than 30 s ago, and look the id up.
 3. **Found:** print, and return `address` so the web updates the profile.
 4. **Not found:** `printer-not-found`.
