@@ -19,7 +19,7 @@ Saved printers keep working when their IP changes.
 
 **Spec:** `docs/superpowers/specs/2026-10-14-printer-discovery-design.md`, sections 3, 6, 8 and 9. The helper side is in the companion plan `2026-10-26-printer-search-helper.md` (API version 2).
 
-**Verified before writing:** all code below was committed as a scratch commit (`b98e7d53a`, never pushed) on top of PR #334's head (`78ef6cf17`) and checked on 2026-10-26:
+**Verified before writing:** all code below was committed as a scratch commit (`879203713`, never pushed) on top of PR #334's head (`78ef6cf17`) and checked on 2026-10-26:
 - `test:unit` 691 tests, 690 pass, 0 fail, 1 skipped (+31);
 - `type-check` 0 errors;
 - `eslint` 0 errors (the one existing `<img>` warning);
@@ -31,6 +31,8 @@ A browser walkthrough simulated the helper's v2 answers with the office search r
 - the cards, setup, the guided test ZPL and the arrows;
 - the save, the blank roll turning the background on, the moved-address save and toast, and the not-found message;
 - "nothing found", and an older helper.
+
+Later the same day, with the real helper 1.1.0 installed, the office search showed the Argox's network card first. Its Windows entry (a PPLA driver on COM10) sat under a collapsed "Installed in Windows (1)", and the six office and virtual printers sat under "Other printers".
 
 ## Global Constraints
 
@@ -1511,7 +1513,7 @@ EOF
 ### Task 4: The sheet: found printers, guided setup, and saved addresses
 
 **Files:**
-- Modify: `apps/web/src/language-data/unirefund/TagService/resources/en.json`, `apps/web/src/language-data/unirefund/TagService/resources/tr.json` (39 keys each)
+- Modify: `apps/web/src/language-data/unirefund/TagService/resources/en.json`, `apps/web/src/language-data/unirefund/TagService/resources/tr.json` (40 keys each)
 - Create: `_components/found-printers.tsx`, `_components/printer-setup.tsx`
 - Modify (full replacement below): `_components/manage-printers-sheet.tsx`
 - Modify: `_components/print-sticker-lines.tsx`
@@ -1527,10 +1529,10 @@ EOF
 
 ```diff
 diff --git a/apps/web/src/language-data/unirefund/TagService/resources/en.json b/apps/web/src/language-data/unirefund/TagService/resources/en.json
-index 62aa58edc..eea695e64 100644
+index 62aa58edc..f74c3f895 100644
 --- a/apps/web/src/language-data/unirefund/TagService/resources/en.json
 +++ b/apps/web/src/language-data/unirefund/TagService/resources/en.json
-@@ -417,6 +417,45 @@
+@@ -417,6 +417,46 @@
    "StickerHeader.PrintLabels.Error.Unknown": "Printing failed.",
    "StickerHeader.PrintLabels.CheckAgain": "Check again",
    "StickerHeader.PrintLabels.CheckingHelper": "Checking…",
@@ -1541,6 +1543,7 @@ index 62aa58edc..eea695e64 100644
 +  "StickerHeader.PrintLabels.Search.Added": "Added",
 +  "StickerHeader.PrintLabels.Search.Network": "Network · {0}",
 +  "StickerHeader.PrintLabels.Search.Windows": "Installed in Windows",
++  "StickerHeader.PrintLabels.Search.InstalledInWindows": "Installed in Windows ({0})",
 +  "StickerHeader.PrintLabels.Search.Others": "Other printers, not label printers ({0})",
 +  "StickerHeader.PrintLabels.Search.NoneFound": "No label printer was found.",
 +  "StickerHeader.PrintLabels.Search.CheckPower": "Is the printer switched on?",
@@ -1580,10 +1583,10 @@ index 62aa58edc..eea695e64 100644
 
 ```diff
 diff --git a/apps/web/src/language-data/unirefund/TagService/resources/tr.json b/apps/web/src/language-data/unirefund/TagService/resources/tr.json
-index e659f6554..a06f98dfa 100644
+index e659f6554..ecb670d97 100644
 --- a/apps/web/src/language-data/unirefund/TagService/resources/tr.json
 +++ b/apps/web/src/language-data/unirefund/TagService/resources/tr.json
-@@ -419,6 +419,45 @@
+@@ -419,6 +419,46 @@
    "StickerHeader.PrintLabels.Error.Unknown": "Yazdırma başarısız oldu.",
    "StickerHeader.PrintLabels.CheckAgain": "Yeniden kontrol et",
    "StickerHeader.PrintLabels.CheckingHelper": "Kontrol ediliyor…",
@@ -1594,6 +1597,7 @@ index e659f6554..a06f98dfa 100644
 +  "StickerHeader.PrintLabels.Search.Added": "Eklendi",
 +  "StickerHeader.PrintLabels.Search.Network": "Ağ · {0}",
 +  "StickerHeader.PrintLabels.Search.Windows": "Windows'ta kurulu",
++  "StickerHeader.PrintLabels.Search.InstalledInWindows": "Windows'ta kurulu ({0})",
 +  "StickerHeader.PrintLabels.Search.Others": "Diğer yazıcılar, etiket yazıcısı değil ({0})",
 +  "StickerHeader.PrintLabels.Search.NoneFound": "Etiket yazıcısı bulunamadı.",
 +  "StickerHeader.PrintLabels.Search.CheckPower": "Yazıcı açık mı?",
@@ -1655,7 +1659,12 @@ export type PrinterSearchState =
   | { phase: "done"; printers: FoundPrinter[] }
   | { phase: "failed" };
 
-/** What the Print Helper found, label printers first, each one click from set up. */
+/**
+ * What the Print Helper found, each one click from set up. Network label
+ * printers come first; Windows printers sit in their own section, open only
+ * when nothing was found on the network, because one physical printer can be
+ * both and its Windows entry may sit on a port it is not connected to.
+ */
 export function FoundPrinters({
   search,
   profiles,
@@ -1672,6 +1681,8 @@ export function FoundPrinters({
   const searching = search.phase === "searching";
   const printers = search.phase === "done" ? search.printers : [];
   const labelPrinters = printers.filter((p) => p.labelPrinter);
+  const networkLabel = labelPrinters.filter((p) => p.connection === "network");
+  const windowsLabel = labelPrinters.filter((p) => p.connection === "windows");
   const others = printers.filter((p) => !p.labelPrinter);
 
   const where = (p: FoundPrinter) =>
@@ -1681,6 +1692,41 @@ export function FoundPrinters({
           p.address.host
         )
       : tag["StickerHeader.PrintLabels.Search.Windows"];
+
+  const cards = (list: FoundPrinter[]) => (
+    <ul className="divide-y rounded-md border">
+      {list.map((p) => (
+        <li className="flex items-center gap-2 py-2 pl-3 pr-2" key={p.id}>
+          <div className="flex min-w-0 grow flex-col">
+            <span className="truncate text-sm font-medium">
+              {foundPrinterName(p)}
+            </span>
+            <span className="text-muted-foreground truncate text-xs">
+              {[
+                p.dpi ? `${p.dpi} dpi` : null,
+                p.connection === "network" ? where(p) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </div>
+          {isAdded(p, profiles) ? (
+            <span className="text-muted-foreground text-xs">
+              {tag["StickerHeader.PrintLabels.Search.Added"]}
+            </span>
+          ) : (
+            <Button
+              data-testid={`print-sticker-lines-use-${p.id}`}
+              onClick={() => onUse(p)}
+              size="sm"
+            >
+              {tag["StickerHeader.PrintLabels.Search.Use"]}
+            </Button>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <div className="flex flex-col gap-2">
@@ -1704,36 +1750,27 @@ export function FoundPrinters({
         </Button>
       </div>
 
-      {labelPrinters.length > 0 ? (
-        <ul className="divide-y rounded-md border">
-          {labelPrinters.map((p) => (
-            <li className="flex items-center gap-2 py-2 pl-3 pr-2" key={p.id}>
-              <div className="flex min-w-0 grow flex-col">
-                <span className="truncate text-sm font-medium">
-                  {foundPrinterName(p)}
-                </span>
-                <span className="text-muted-foreground truncate text-xs">
-                  {[p.dpi ? `${p.dpi} dpi` : null, where(p)]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-              </div>
-              {isAdded(p, profiles) ? (
-                <span className="text-muted-foreground text-xs">
-                  {tag["StickerHeader.PrintLabels.Search.Added"]}
-                </span>
-              ) : (
-                <Button
-                  data-testid={`print-sticker-lines-use-${p.id}`}
-                  onClick={() => onUse(p)}
-                  size="sm"
-                >
-                  {tag["StickerHeader.PrintLabels.Search.Use"]}
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
+      {networkLabel.length > 0 ? cards(networkLabel) : null}
+
+      {windowsLabel.length > 0 ? (
+        <Collapsible
+          defaultOpen={networkLabel.length === 0}
+          key={String(networkLabel.length === 0)}
+        >
+          <CollapsibleTrigger
+            className="group flex w-full items-center gap-1 text-left text-sm font-medium"
+            data-testid="print-sticker-lines-windows-printers"
+          >
+            <LucideChevronRight className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+            {tag["StickerHeader.PrintLabels.Search.InstalledInWindows"].replace(
+              "{0}",
+              String(windowsLabel.length)
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">
+            {cards(windowsLabel)}
+          </CollapsibleContent>
+        </Collapsible>
       ) : null}
 
       {search.phase === "done" && labelPrinters.length === 0 ? (
