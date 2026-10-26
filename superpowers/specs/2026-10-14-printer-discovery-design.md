@@ -99,7 +99,7 @@ The current editor (size, rotation, offsets, ribbon, connection, host or queue, 
 
 - **Before a run**, if the printer supports status: `GET /printers/{id}/status`.
   - Problems are shown in plain words ("The printer is out of labels." and so on), and nothing is sent.
-  - "Unknown" (the Argox, or no reply) prints as today.
+  - "Unknown" (a printer that has never answered status, or no reply) prints as today. The Argox answers `~HS` (verified 2026-10-26), so it gets status too; a printer is treated as status-capable once it has answered once.
   - On a Zebra that answered `~HS` at search time, a timeout shows "Couldn't read the printer's state. Check it has labels and the head is closed" with **Print anyway**. Zebra may not answer `~HS` while in a fault (research §3).
 - **When the helper reports a new address** after re-finding (§8), the profile's `lastAddress` is updated and a toast says "Printer found at a new address".
 - **Errors** map to the messages in §9.
@@ -219,7 +219,7 @@ The hardware address comes first, so a Zebra that is out of labels or slow to an
 - `printMethod`: `"thermal-transfer"`, `"direct-thermal"` or `null`.
 - `maker`, `model`, `dpi`, `printMethod` and `labelLengthMm` may each be `null`.
 - `windowsPrinter`: the queue name for a `"windows"` connection, or for a USB device with a matched queue.
-- `statusSupported`: true for Zebras that answered `~HI`.
+- `statusSupported`: true for Zebras that answered `~HI`. The search sends `~HS` to no one: an Argox in PPLA/PPLB mode on the network can't be told apart, and might print the bytes. The web learns status support from the first status reply before a run (phase 3).
 
 ### `GET /printers/{id}/status`
 
@@ -236,6 +236,16 @@ The hardware address comes first, so a Zebra that is out of labels or slow to an
 - String 2 field 4 = ribbon out.
 
 A printer that doesn't support status, or doesn't reply, returns `unknown`.
+
+Amended 2026-10-26, from the Argox findings:
+- **`reason` on unknown.** An `unknown` carries one of three reasons:
+  - `"no-reply"`: nothing parsable within the deadline;
+  - `"busy"`: one of our own jobs holds that printer's lock, so we don't interleave and the run queues behind it;
+  - `"unsupported"`: an installed-printer (queue) target, which can't be read through the spooler.
+
+  The web shows "Couldn't read the printer's state" only for `no-reply` on a printer that has answered status before.
+- **`lastAddress`.** The id resolves exactly as `POST /print` does, so the request takes an optional `?lastAddress=host:port` for a network printer after a helper restart. Resolution errors use the same codes as `/print`.
+- **Who gets `~HS`.** It is sent only by this endpoint, i.e. only to a printer the admin is about to send ZPL to, never during a search.
 
 ### `POST /print`
 

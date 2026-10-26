@@ -284,3 +284,18 @@ Caveats: OUI list is a snapshot (the Wireshark file is regenerated daily from IE
   - Ethernet 192.168.1.7/24;
   - Hyper-V `vEthernet (Default Switch)` 172.25.160.1/20, a virtual adapter that a search must skip.
 - **USB:** no USB printer was attached; `C:\Windows\INF\usbprint.inf` is present.
+
+## Verified on our own hardware (2026-10-26, office Argox O4-250 in PPLZ mode)
+
+- **USB with no vendor driver.**
+  - The in-box usbprint binds it as `USB\VID_1664&PID_0D10\80384F461093`.
+  - `IOCTL_USBPRINT_GET_1284_ID` returns `46 46` + `MFG:ARGOX ;CMD:PPLZ;MDL:O4-250 PPLZ;CLS:PRINTER;DES:ARGOX O4-250 PPL`. The 2-byte prefix is the count written into both bytes, and DES is cut short.
+  - A cancelled overlapped read returns.
+  - A 0-byte write fails with 1450.
+  - Two handles can be open at once.
+  - Printing works.
+- **`~HS` answers over USB (14 ms) and over TCP 9100 (about 110 ms), in the full Zebra framing.**
+  - The Argox does NOT answer `~HI` (§4), so `~HS` is the only status channel it has.
+  - Ready state: `<STX>030,0,0,0059,000,0,0,0,000,0,0,0<ETX><CR><LF><STX>000,0,0,0,0,2,5,0,00000000,1,002<ETX><CR><LF><STX>0000,0<ETX><CR><LF>`.
+  - Head open: String 2 field 3 becomes `1` (`000,0,1,0,0,2,5,0,00000000,1,002`). The printer kept answering while the head was open, at 123 ms.
+  - Taking the labels out, and pressing the button, changed nothing in a 2-minute poll. Paper-out is probably only detected on a feed attempt; this is not yet verified.
