@@ -30,7 +30,7 @@ An admin must be able to set up a label printer without knowing what an IP addre
 - **No backend work.**
   - The backend Device Service (it has `PrintTag` / `PrintCustomTemplate` commands and a SignalR hub) is **not** used. That was the user's decision.
   - Everything stays local: the portal talks to the helper on the same PC.
-- **Platform and install:** Windows only, a per-user install, **no admin rights**, **no vendor driver**.
+- **Platform and install:** Windows, plus macOS since helper PR #3 made Core cross-platform. Per-user install on Windows, **no admin rights**, **no vendor driver**. Driverless USB (§5) is Windows-only.
 - **Unchanged security rules:** the Origin and Host allowlists and the 127.0.0.1-only listener stay exactly as they are.
 - **Old portal builds keep working:** `GET /printers?scan=1` and `POST /print` with a `target` stay as they are.
 - **Out of scope:**
@@ -126,7 +126,7 @@ Four sources run in parallel, and their results are merged by IPv4 address.
 | Port sweep | TCP connect to `:9100`, 1.5 s timeout, up to 256 concurrent, then close **without sending a byte** | "accepts raw printing" |
 | SNMP | One SNMPv1 GET to every candidate address, community `public`, OIDs sysDescr `1.3.6.1.2.1.1.1.0`, sysName `.1.5.0`, Zebra model `1.3.6.1.4.1.10642.1.1.0`, Zebra serial `1.3.6.1.4.1.10642.1.9.0`. Wait 2 s total | description, model, serial |
 | Zebra discovery | UDP `2E 2C 3A 01 00 00` to `255.255.255.255:4201` and each adapter's directed broadcast, 3 rounds 1 s apart. Replies are de-duplicated by source IP | "a Zebra is here"; firmware, serial and system name when the reply parses (layout from old print servers; parse defensively, research §1) |
-| Neighbour table | `GetIpNetTable2` after the sweep, so the probed hosts are in the cache | MAC → maker through the OUI table (research §8: Zebra Technologies OUIs, Argox `78:5F:4C`). Only for hosts on the adapter's own subnet; routed hosts show the gateway's MAC, which must never be attributed to the printer |
+| Neighbour table | The `arp` tool after the sweep, so the probed hosts are in the cache: `arp -a` on Windows, `arp -an` on macOS. It needs no admin rights and is parsed by address only, so localised headers don't matter. Chosen over `GetIpNetTable2` when the plan was verified, because it also works on macOS | MAC → maker through the OUI table (research §8: Zebra Technologies OUIs, Argox `78:5F:4C`). Only for hosts on the adapter's own subnet; routed hosts show the gateway's MAC, which must never be attributed to the printer |
 
 ### 4.3 Recognising a candidate
 
@@ -259,7 +259,7 @@ Printer problems come from the status endpoint, not from `/print`.
 3. **After a helper restart** (empty registry), a `printerId` plus `lastAddress` is accepted only after verification. The helper checks the address belongs to that id (same MAC in the neighbour table, or the same Zebra serial). If it can't, it runs a search.
 4. **Ports:**
    - 9100 is always allowed for private IPv4, as today;
-   - any other port only when the printer itself reported it (`ip.port` getvar or a discovery reply) and it's recorded in the registry;
+   - any other port only when the printer itself reported it (`ip.port` getvar or a discovery reply) and it's recorded in the registry. **Phase 1 prints on 9100 only**: the reported port can only be read over 9100 itself, and the discovery reply carries none;
    - the legacy `target` form stays 9100-only.
 5. **Read-only probing:** the helper only sends `~HI`, `~HS` and `getvar`, never `setvar` or `do`. It never probes unrecognised devices (§4.3).
 6. **Searching is serialised** (one at a time, shared result), which bounds the network traffic a page can cause.
