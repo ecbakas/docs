@@ -262,3 +262,52 @@ Behaviour:
 - **Web:** walk the page on the local dev server against dev, covering the 0/1/2 post states and both submits. This needs a test user with the picker grant and post assignments on dev, so **ask the user first.**
 - **super-app:** run on CPadNFC (check `flags=` DEBUGGABLE first).
 - **PRs:** web via the repo's `create-pr` skill; super-app to `unirefund-mobile`. Both PRs note that uat needs UniRefund#2337 and the `ViewMine` role grants before the web merges to uat, because the uat build type-checks policies.
+
+---
+
+## Added 2026-10-27 (user: nobody owns the map change; implement all SDK changes)
+
+### Task 7 (web/ssr): adapt ssr to the regenerated SDK — explore on the map-places API, public tag view
+
+**Context:**
+- **The map API (live on dev):** CRM replaced `GET public/map/merchants/{id}` with `GET /api/crm-service/public/map/places/{layer}/{id}`, where `layer` is the `MapLayer` enum `"Merchant" | "RefundPoint" | "ExitPoint"`.
+  - It returns `UniRefund_CRMService_Map_MapPlaceDto`: `layer`, `id`, `name`, `headquarterName`, `addresses: MapPlaceAddressDto[]`, `primaryPhone`, `primaryEmail`, `locationTypeId`, `locationTypeName`, `latitude`, `longitude`, and `operator {name, primaryPhone, primaryEmail}`.
+  - `MapPlaceAddressDto` has the same fields as the old `PublicMerchantAddressDto`.
+  - **`sectors` no longer exists on the detail.** `Sector` survives only as a viewport/list filter.
+- **ssr explore already draws several layers:** `pin.layer`, `LayersSheet`, `LAYER_LABEL_KEYS`. Only the detail fetch is merchant-only, through `use-merchant-detail.ts` → `getPublicMerchantDetailApi(id)`, which Task 1 repointed with a hard-coded `layer: "merchant"`.
+- **The public tag view:** TagService's `TagPublicDetailDto` gained `walletPassLink`. `apps/ssr/.../tag/[slug]/public-tag-view.ts` builds the view from an allowlist with a `satisfies` exhaustiveness check, so it now fails tsc (TS1360).
+
+**Files:**
+- `packages/actions/unirefund/CRMService/actions.ts`: replace `getPublicMerchantDetailApi(id)` with `getPublicMapPlaceApi(layer: UniRefund_CRMService_Map_MapLayer, id: string)`. Remove the old name if ssr is its only caller.
+- `apps/ssr/src/app/[lang]/(public)/explore/_components/use-merchant-detail.ts`: rename to `use-place-detail.ts`. It takes `{ layer, id }` and fetches any layer.
+- `apps/ssr/src/app/[lang]/(public)/explore/_components/place-detail.tsx`, `place-sheet.tsx` and any other caller.
+- `apps/ssr/src/utils/explore/merchant.ts` (+ `merchant.test.ts`): move to `MapPlaceDto` / `MapPlaceAddressDto`. If the helpers are no longer merchant-specific, rename the module to `place.ts`.
+- `apps/ssr/src/app/[lang]/(public)/tag/[slug]/public-tag-view.ts`: `type PublicTagView = Omit<TagPublicDetail, "traveller" | "walletPassLink">`. Ruling: a wallet button is a product feature, not a sync fix.
+
+**Behaviour:**
+- **Detail fetch:** opening a pin or list item of **any** layer fetches `places/{layer}/{id}`. The card shows name, headquarter, address lines, phone and email, as today.
+  - For a non-merchant layer, also show `locationTypeName` when set.
+  - When `operator` is set, show the operator name, and use the operator's phone and email as a fallback when the place has none.
+- **The sector chip section is removed from the detail card.** The sector filter sheet is unchanged.
+- **If a layer's detail was previously not opened at all** (only merchants opened a card), keep the card for every layer, with the same layout. Do not add new interactions beyond that.
+- **No new i18n keys** unless a label is genuinely needed, for example "Operated by". If one is, add it to ssr en/tr, then run `pnpm --filter ssr run init`, `node scripts/find-missing-i18n.mjs --app=ssr` and `pnpm i18n:unused --app=ssr` (baseline: 13 unreachable `CardScanner.*` keys).
+
+**Gates:**
+- `pnpm --filter ssr exec tsc --noEmit` → 0;
+- `pnpm --filter ssr run lint` → 0 errors (React Compiler lint errors are real errors in ssr; never suppress them);
+- `pnpm --filter web exec tsc --noEmit` stays at Task 2/3's state.
+
+**Commit:** `fix(ssr): explore opens any map place on the places API; drop removed sector chips`, plus `fix(ssr): keep walletPassLink off the public tag page`.
+
+### Task 8 (super-app): full SDK regen and its fallout
+
+- **Regenerate:** run `npm run gen` with no `-f`, so every service in `src/saas/API_LIST.json` is regenerated. Restore files whose only change is line endings or formatting (`git diff` empty).
+- **Fix compile and test fallout minimally**, and list each changed call site.
+- **Explore (`src/screens/**/Explore/**`):** finish what Task 4 started.
+  - Detail fetch by the pin's own layer (`getPublicMapPlace(layer, id)`).
+  - Move types to `MapPlaceDto`, and remove the sector chips from the detail.
+  - Apply the same operator / `locationTypeName` rules as Task 7, with the super-app's own i18n if a label is needed.
+- **Gates:**
+  - `npm run typecheck`: only the `tabBackNavigation:119` error is allowed;
+  - full `npx jest` green.
+- **Commit:** `feat(sdk): regenerate every service from dev` plus `fix(explore): open any map place on the places API`.
