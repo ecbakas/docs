@@ -9,7 +9,7 @@ Could a NameDrop-style gesture — two devices held together — let staff
 - **(A) pull** the traveller's identity from the traveller's phone before creating a tag, or
 - **(B) push** a freshly created tag to the traveller's phone and assign it to them?
 
-## Answer in one paragraph
+## Short answer
 
 Not with NameDrop or AirDrop: neither has a third-party API. A tap gesture is still possible over
 NFC, but **only when one of the two devices is an Android running our app**. iPhones can *read* NFC
@@ -21,13 +21,19 @@ Staff may use **their own iPhone**, not only our CPads and V3. That leaves pairs
 **staff iPhone ↔ traveller iPhone**, and **staff iPhone ↔ traveller on the web**. Those pairs get a QR
 code instead.
 
-So the design is one backend primitive — a short-lived, single-use handoff token — with two
-transports:
+**Both sides give and get data.** The tap (or QR) only has to carry one link, one way: a link that
+joins a short-lived **handoff session** on our backend. Once both devices are in the session, the
+traveller can share their details and receive the tag, and staff can receive the details and give
+the tag. All of it goes through the session, never back over the radio. So the design is one
+backend primitive with two ways to join it:
 - **QR**, which works for every pair;
 - **NFC tap**, which speeds things up wherever an Android app is present.
 
-**Recommendation: build the token service and its QR flows first, because that is the only thing every
-pair can use; add the NFC tap second; and do not build an iPhone↔iPhone gesture.** Details in
+The link stays an ordinary `https://` address. Once super-app claims that domain (universal links /
+App Links), the phone opens super-app when it is installed and ssr in the browser when it is not.
+
+**Recommendation: build the handoff session and its QR join first, because that is the only thing
+every pair can use; add the NFC tap second; and do not build an iPhone↔iPhone gesture.** Details in
 [Recommendation](#recommendation).
 
 ## How it works today
@@ -141,73 +147,119 @@ Traveller: **iP** = iPhone app, **AP** = Android app, **W** = ssr in a mobile br
 3. Strangers need "Everyone for 10 Minutes" plus an AirDrop code (iOS 26.2), and the received link
    opens wherever iOS sends it. It is a share, not a gesture.
 
-A2, A3 and B2 are the same mechanism with a different token behind the URL, and A4/B3 are the same
-URL drawn as a QR. That is the whole design: **one token service, two transports (QR everywhere, NFC
-tap where an Android app is present)**.
+A2, A3 and B2 are the same mechanism, and A4/B3 are the same link drawn as a QR. The next section
+merges them into one session in which both sides give and get.
+
+## Two-way: both sides give and get
+
+The tap or QR moves **one link, one way**: the join link of a handoff session. Everything else
+moves **both ways through the session**, so the radio never has to carry data back:
+
+| Staff · Traveller | How the session is joined | Tested on device? |
+| --- | --- | --- |
+| Android · iPhone | staff device emits, the iPhone reads | **Yes** (background read, 2026-11-05) |
+| Android · Android | staff device emits, the phone reads | No |
+| Android · web | staff device emits, the phone opens ssr | iPhone half yes (it opened the browser) |
+| iPhone · Android | traveller's phone emits, staff iPhone reads in-app | No (in-app read untested) |
+| iPhone · iPhone, iPhone · web | QR, either side shows it | — (camera scan, no NFC) |
+
+In every row, once joined:
+- the traveller **gives** their details and **gets** the tag;
+- staff **get** the details and **give** the tag.
+
+The session part needs the backend and is not built, so it is untested in every row.
+
+A direct two-way NFC exchange is not proposed. It would mean each side sending its own data in APDUs
+during one tap, which only works when both ends are our apps in the foreground (Android↔Android, or
+a staff iPhone app talking to a traveller's Android app). It adds nothing the session does not
+already give, and it cannot reach a traveller in a browser or with no app open.
+
+### The session
+
+1. **Create.** The device that will emit (or show the QR) creates it and gets
+   `{ id, joinUrl, expiresAt }`. Staff need the tag-create and traveller-search grants; a traveller
+   only needs to be signed in.
+2. **Join.** The other device reads `joinUrl` and joins with its own sign-in. The server accepts
+   exactly one staff member and one traveller, once, within the TTL (2–5 minutes). The emitter stops
+   emitting.
+3. **See who is there.** The traveller's screen names the merchant and the staff member; the staff
+   screen says "Traveller connected".
+4. **Give and get, in either order:**
+   - traveller → staff: **share details.** A consent screen lists the fields (name, nationality,
+     document type and number, date of birth) and the document (active by default); the server
+     records the consent. The staff screen fills in the traveller exactly as a search hit would
+     (`TravellerSearchResultDto` → `onSelect`).
+   - staff → traveller: **give the tag.** A tag created for that traveller appears on their screen
+     at once. Or staff offer an existing draft, the traveller taps **Accept** (self-assign), and
+     staff see "Accepted by ⟨name⟩".
+5. **Follow.** Both screens poll the session every 1–2 s while it is open; a push channel can come
+   later.
+6. **Close.** The session closes when the tag is delivered, either side cancels, or it expires.
+
+One tap therefore covers both (A) and (B) from the original question. Staff get the traveller's
+details before creating the tag, and the traveller gets the tag afterwards. The traveller decides
+everything on their own phone.
+
+## Opening super-app when it is installed
+
+The goal: if the traveller has super-app, the tap opens it; if not, it opens ssr in the browser.
+
+**Do not put an app-scheme link (`unirefundsuperapp://…`) on the tag.**
+- iPhone background tag reading ignores custom URL schemes (Apple: "doesn't support custom URL
+  schemes. Use universal links instead."). An iPhone with no app open would show nothing.
+- On Android, a custom scheme with the app missing also shows nothing.
+
+**Keep the `https://` link and make super-app claim it**:
+
+| | iPhone | Android |
+| --- | --- | --- |
+| App setting | `ios.associatedDomains: ["applinks:<ssr host>"]` | `android.intentFilters` for `https://<ssr host>/s/*` with `autoVerify: true` |
+| File ssr must serve | `/.well-known/apple-app-site-association` naming the Team ID + `com.clomerce.unirefundsuperapp` and the paths (`/s/*`, later `/tag/*`) | `/.well-known/assetlinks.json` with the package name and the signing certificate SHA-256 |
+| App installed | opens super-app, link delivered to the router | opens super-app |
+| App missing | opens the link in the default browser (ssr) | opens the browser (ssr) |
+
+**Blockers found 2026-11-05:**
+- **ssr redirects these files.** On `ssr-dev`, `/.well-known/apple-app-site-association`,
+  `/apple-app-site-association` and `/.well-known/assetlinks.json` all answer `307` to a
+  `/tr/…` path, from the locale middleware. Apple requires the file served directly, with no
+  redirect, and Android verification fails on one too. The middleware must exempt `/.well-known/`.
+- **super-app declares neither setting** today, so this needs a new App Store / Play release.
+  Travellers on older versions just get the browser, which is the fallback anyway.
+- **One host per environment.** dev, uat and live ssr hosts each need the files, and each app build
+  must list the hosts it should open. The live ssr host is not settled (`ssr.unirefund.com` is a
+  catch-all today).
+
+Android also has an "Android Application Record" (`android.com:pkg`) that forces the app open. It
+is not wanted here: with the app missing it opens the **Play Store** instead of ssr.
 
 ## UX flows
 
-### A4 / B3 — QR, every pair (do this first)
+### Tap to connect (an Android device in the pair)
 
-- **A4 (identity):** the traveller opens "Show my code" (Home or Profile; this replaces the
-  `"UNIREFUND"` placeholder). super-app or ssr shows a QR of `https://<ssr>/i/<identityToken>`
-  (60–120 s, refreshed while the screen is open). Staff scan it from `SearchTraveller` with the
-  existing `QrScanner`. The app redeems the token and gets the same `TravellerSearchResultDto` a
-  search returns, then the tag flow continues unchanged.
-- **B3 (claim):** the existing tag QR, but encoding `https://<ssr>/t/<claimToken>` instead of the
-  `publicLink` whenever it is shown on a staff screen. The printed receipt can keep `publicLink`.
+1. Staff tap **Connect traveller**, either in `SearchTraveller` (before creating a tag) or on a
+   tag's result screen (after). If staff are on an iPhone and the traveller is on Android, the
+   traveller taps **Connect to shop** instead, and their phone emits.
+2. The emitting device shows "Hold the phones together", the same link as a QR, and where its NFC
+   antenna is.
+3. The other phone touches it:
+   - **iPhone, no app open:** a banner opens super-app if installed, else ssr in the default browser.
+   - **Android phone, NFC on and unlocked:** the OS opens super-app if installed, else the browser.
+   - **Already in super-app:** a **Tap phone** button runs an in-app NDEF read, with no banner.
+4. Both screens move into the session (above): consent to share, then the tag arrives.
 
-### B2 — tap to hand over a tag (staff on Android)
+### QR join (every pair, including iPhone ↔ iPhone)
 
-1. Staff creates the tag as Draft (no traveller picked) → result screen shows
-   the QR as today **and** "Hold the traveller's phone to the back of the tablet" with an NFC mark
-   where the antenna is.
-2. The tablet starts emulating an NDEF tag whose single record is
-   `https://<ssr>/t/<claimToken>` (token: random, ≥128 bits, 2–5 min TTL, single use).
-3. Traveller's phone touches the tablet:
-   - **iPhone, any app or lock screen unlocked**: background tag reading shows a banner for the URL →
-     tap → super-app (once universal links exist) or ssr in the default browser.
-   - **Android phone, NFC on, unlocked**: the OS dispatches the URL to super-app (verified App Link)
-     or the browser.
-   - **Traveller already in super-app** ("Receive a tag" button): an in-app NDEF read session, no banner.
-4. Landing page = today's TagPreview / ssr public tag page, with **Claim**. Not logged in → sign in,
-   then back to the claim (as today's "Log in to claim").
-5. Backend redeems the token → `self-assign` → the tablet's result screen flips to
-   "Claimed by A. Traveller" (poll or the existing notification channel). The staff member sees the
-   right person got it before the traveller walks away.
-
-### A2 — tap to share my details (staff on Android)
-
-1. Staff opens `SearchTraveller` → new chip **"Tap phone"**. The tablet asks the backend for a
-   handoff session (staff must hold the traveller-search grant) and starts emulating
-   `https://<ssr>/h/<sessionToken>`. The dialog shows "Waiting for the traveller…".
-2. Traveller taps the tablet → banner / dispatch as in B2 → super-app or ssr opens
-   **"Share your details with ⟨Merchant name⟩?"** listing exactly what will be shared (name,
-   nationality, document type + number, date of birth), and which document if they have several
-   (active document by default).
-3. Traveller confirms (already signed in, or signs in first). Their phone calls
-   `attach-identity(sessionToken, documentId)`; the backend records consent.
-4. The tablet, polling the session (or notified), receives the same `TravellerSearchResultDto` a
-   search returns and calls `onSelect` — the rest of tag creation is unchanged.
-5. Decline / timeout → the dialog says so; staff falls back to search or MRZ scan.
-
-### A3 — staff on their own iPhone, traveller on Android
-
-1. The traveller opens "Share my details" on their Android phone and confirms. The phone then emits
-   `https://<ssr>/i/<identityToken>` (the same token as the A4 QR) for as long as that screen is open.
-   The screen shows the QR as well.
-2. Staff tap **"Tap phone"** in `SearchTraveller`. iOS shows its NFC sheet ("Hold near the other
-   phone"), and an in-app `NFCNDEFReaderSession` reads the URL.
-3. The staff app redeems the token (staff grant required), and the traveller is selected. To
-   hand over a tag, staff then assign it with today's `assign-traveller` call (B4).
-4. The traveller's screen flips to "Shared with ⟨Merchant⟩" once the token is redeemed.
+The same session, with `joinUrl` drawn as a QR by whichever side would have emitted. The other side
+scans it with super-app's `QrScanner` or the phone camera.
+- On the traveller side this replaces the `"UNIREFUND"` placeholder QR (**Connect to shop**).
+- On staff screens it replaces showing `publicLink` as the hand-over QR. The printed receipt can keep
+  `publicLink`.
 
 ### Staff iPhone ↔ traveller iPhone (or web)
 
-There is no tap here. The traveller shows the A4 QR, or staff show the B3 QR. An iPhone-only
-proximity gesture (A8, UWB + Multipeer) is buildable, but it needs both apps open on the same screen
-plus two permission prompts on first use. At a counter that is no quicker than a QR scan, and it costs
-a native Swift module on each side.
+There is no tap here; one side shows the QR. An iPhone-only proximity gesture (A8, UWB + Multipeer)
+is buildable, but it needs both apps open on the same screen plus two permission prompts on first
+use. At a counter that is no quicker than a QR scan, and it costs a native Swift module on each side.
 
 ## Security and privacy
 
@@ -215,11 +267,11 @@ a native Swift module on each side.
 Today's `publicLink` must **not** be emitted as-is: its slug decodes to the document number and its
 GUID is a permanent claim capability.
 
-**What moves server-side**: in A2, the traveller's identity goes from the traveller's authenticated
-session to the staff member's authenticated session, after an explicit confirmation on the
-traveller's own screen, and only to a staff user who already holds the search grant (the same data a
-document-number search returns today). In B2, nothing personal moves: the traveller's own session
-claims a tag.
+**What moves server-side**: after joining, the traveller's details go from the traveller's
+authenticated session to the staff member's. That happens only after the traveller confirms on their
+own screen, and only to a staff user who already holds the search grant (the same data a
+document-number search returns today). The tag goes the other way, as an assignment the traveller's
+own session accepts.
 
 **Why a server token beats sending raw PII** (e.g. a vCard over NFC from the traveller's phone):
 - The data comes from the traveller's verified profile, not from whatever the sender types.
@@ -228,26 +280,18 @@ claims a tag.
 - It can expire, be revoked, and be single-use; raw PII cannot be recalled once beamed.
 - It works identically when the reader is a browser that cannot do anything with raw bytes.
 
-**Replay**: tokens are single-use and expire in minutes; the emitter rotates the token per session
-and stops emulating once it is redeemed or the screen closes. A replayed token is rejected.
+**Replay**: a join link works once and expires in minutes. The emitter stops emulating once the
+session is joined or the screen closes, and a replayed link is rejected.
 
-**Relay** (NFC relay extends 4 cm to anywhere): a relayed A2 URL only shows a remote victim a
-"Share your details with ⟨Merchant⟩?" prompt — the same phishing surface as a photographed QR, and
-the prompt names the merchant. A relayed or photographed B2 URL lets someone else claim the tag first;
-the staff screen showing "Claimed by ⟨name⟩" exposes that at the counter while the traveller is
-still there (whether staff can re-assign a claimed tag is a backend question). Binding the claim token to the tablet's session and a 2–5 minute TTL keeps the
-window short. NFC's few-centimetre range already makes casual capture harder than a QR on a counter.
+**Relay** (NFC relay extends 4 cm to anywhere), or a photographed QR, lets someone else join first.
+Both screens then show the wrong counterparty:
+- staff see a stranger's name with the real traveller in front of them, and cancel;
+- a traveller sees a merchant they are not standing at, and declines.
 
-**Traveller-emits (A3, and the A4 QR) has weaker consent than A2.** The traveller agrees *before*
-knowing who will read the code, and any staff user with the search grant who reads or relays it
-can redeem it. Mitigations:
-- emit and show the code only while the "Share my details" screen is in the foreground;
-- keep the token single-use and short-lived;
-- refuse redemption without the staff grant, and keep the landing page empty for anyone else;
-- tell the traveller afterwards who received the data ("Shared with ⟨Merchant⟩").
-
-This is the same exposure as showing a passport at the counter, and it is still better than raw PII
-on the air.
+Nothing is shared or assigned until the person on each phone has seen who joined. This also fixes the
+weakness of the earlier traveller-emits design (A3): consent now always comes *after* the traveller
+sees the counterparty. NFC's few-centimetre range already makes casual capture harder than a QR on a
+counter.
 
 **Consent copy** must say who receives the data and what fields; decline must be as prominent as
 accept.
@@ -256,19 +300,15 @@ accept.
 
 | Piece | Where | Size | Native rebuild |
 | --- | --- | --- | --- |
-| "Show my code" (A4) and token-based claim QR (B3) | super-app, ssr | small | no |
-| HCE NDEF Type 4 tag emulator (`HostApduService`, AID `D2760000850101`, CC + NDEF files) — one module serves staff (B2/A2) and traveller (A3) | new Expo module in super-app; same Kotlin in pos-app's `modules/` | ~250 lines Kotlin + config plugin (`apduservice.xml`, service in manifest) | yes |
-| "Tap phone" UI on tag result and in `SearchTraveller` | super-app, pos-app | small | no |
-| In-app NDEF read (traveller for B2/A2; **staff iPhone** for A3) | super-app (`react-native-nfc-manager` NDEF; add `"NDEF"` to `readersession.formats`) | small | yes (iOS entitlement) |
-| Universal links / App Links so the tap opens super-app, not the browser | `associatedDomains` + Android `autoVerify` intent filters; AASA + `assetlinks.json` served by ssr. **ssr middleware currently 307s `/.well-known/apple-app-site-association` to `/tr/…`** (ssr-dev/ssr-uat). Apple requires it served without a redirect, so the middleware must exempt `/.well-known/` | small–medium | yes |
-| ssr landing routes `/t/<token>`, `/h/<token>` | web-app ssr | small–medium | — |
-| **Backend: claim token** (mint for a tag — staff; redeem → self-assign — traveller) | TagService | medium | — |
-| **Backend: identity token** (mint — traveller; redeem — staff + search grant; consent/audit record) | TravellerService | medium | — |
-| **Backend: handoff session** for A2 only (create — staff; attach identity — traveller; poll/notify — staff) | TravellerService | medium | — |
+| **Connect** screens on both roles: emit/show QR, join, consent, accept, follow the session | super-app, pos-app (staff only) | medium | no |
+| HCE NDEF Type 4 tag emulator (`HostApduService`, AID `D2760000850101`, CC + NDEF files), one module for staff and traveller | new Expo module in super-app; same Kotlin in pos-app's `modules/` | ~250 lines Kotlin + config plugin (`apduservice.xml`, service in manifest); the spike's `Type4Tag.java` is the starting point | yes |
+| In-app NDEF read (**Tap phone**, both roles) | super-app (`react-native-nfc-manager` NDEF; add `"NDEF"` to `readersession.formats`) | small | yes (iOS entitlement) |
+| Universal links / App Links so the link opens super-app when installed | `associatedDomains` + Android `autoVerify` intent filters in super-app; AASA + `assetlinks.json` served by ssr, **with the `/.well-known/` redirect removed** (see [Opening super-app](#opening-super-app-when-it-is-installed)) | small–medium | yes |
+| ssr session pages `/s/<joinToken>`: join, consent, accept | web-app ssr | small–medium | — |
+| **Backend: handoff session**: create, join, share details (with a consent record), give or offer a tag, accept, poll | TravellerService + TagService | medium–large | — |
 
-Rough app-side size, excluding backend: QR flows (A4/B3) a few days; spike 1–2 days; NFC tap
-(emitter module, "Tap phone" UI, in-app reads, universal links) one to two weeks across both
-directions. The backend endpoints are the long pole and are not sized here. A8 (iPhone↔iPhone UWB)
+Rough app-side size, excluding backend: Connect screens and the QR join about a week; NFC tap
+(emitter module, Tap phone, universal links) another one to two weeks. The backend endpoints are the long pole and are not sized here. A8 (iPhone↔iPhone UWB)
 would add a native Swift module and is not recommended.
 
 **Prototype on the attached devices, in this order:**
@@ -282,8 +322,8 @@ would add a native Swift module and is not recommended.
 
    This retires the main unknown — see [Unknowns](#unknowns) — and finds where the OrderPAD
    antenna is. V3 is the second staff device whenever it is attached.
-2. **QR flows (A4, B3)** as soon as the backend tokens exist. They need no NFC at all.
-3. **NFC tap**: B2, then A2 and A3, all reusing the same tokens.
+2. **Session + QR join** as soon as the backend session exists. It needs no NFC at all.
+3. **NFC tap** as a second way to join the same session.
 
 Not testable here: anything iPhone-side beyond background reading needs the TestFlight workflow and
 the user's iPhone.
@@ -311,12 +351,9 @@ Android needs), an Android phone tapping the CPad, and whether the controller cr
   - On CPadNFC, `dumpsys nfc` lists the service as the **default** handler for `D2760000850101`,
     routed to host, with "Requires Device ScreenOn: true" and "Requires Device Unlock: false".
   - The screen launches without a crash.
-- **Not verified, because it needs a second NFC device in hand:**
-  - any over-the-air exchange;
-  - the iPhone background read;
-  - the iPhone in-app read;
-  - an Android phone's NDEF dispatch.
-- **It emits** `https://ssr-dev.unirefund.com/?src=nfc-spike` whenever CPadNFC's screen is on. Each
+- **Verified over the air afterwards:** the iPhone background read (see the rounds below). Never
+  verified: the iPhone in-app read, and an Android phone tapping the CPad.
+- **While installed it emitted** `https://ssr-dev.unirefund.com/?src=nfc-spike` whenever CPadNFC's screen was on. Each
   tap leaves a summary line on the spike's screen ("URL SERVED" or "not served", with the APDU
   count), and the raw APDUs go to `logcat -s NfcSpike`.
 - **Side finding:** `dumpsys nfc` on the OrderPAD hangs (dump timeout) while the device dozes, and
@@ -390,8 +427,10 @@ Android needs), an Android phone tapping the CPad, and whether the controller cr
 - **The device mix.** If most staff bring their own iPhones and most travellers carry iPhones, then
   most counters fall into the no-tap pair, and the tap is a nicety on top of QR. Knowing the split
   decides how much NFC work is worth doing.
-- **Backend appetite** for the token endpoints and a consent record (TagService, TravellerService).
+- **Backend appetite** for the handoff session and a consent record (TravellerService, TagService).
   Nothing here exists today.
+- **Android ↔ Android tap** is untested on our hardware (no second Android device touched the
+  CPad). It is Android's own documented HCE setup, so the risk is low.
 
 ## Recommendation
 
@@ -399,15 +438,17 @@ Android needs), an Android phone tapping the CPad, and whether the controller cr
    iPhone ↔ traveller iPhone (and ↔ web) has no NFC path open to us. NameDrop, AirDrop, iOS card
    emulation, Wi-Fi Aware and Wallet NFC are closed, region-gated or entitlement-gated. Apple's iOS 27
    Tap to Share is the nearest thing, but it needs Tap to Pay and excludes the EEA and Turkey.
-2. **Build the token service and its QR flows first** (A4 "Show my code", B3 claim QR). Ask the
-   backend for single-use, short-TTL claim and identity tokens with consent logging. This works for
-   every pair, replaces the placeholder profile QR, and stops `publicLink` (document number + permanent
-   claim key) being the thing shown on staff screens.
-3. **Add the NFC tap second, on the same tokens**, wherever an Android app is in the pair:
-   - staff Android emits (B2, A2), which covers every traveller, even with no app installed;
-   - a traveller on Android emits (A3) for staff on iPhones.
+2. **Build the handoff session and its QR join first.** One session in which the traveller shares
+   their details and receives the tag, and staff receive the details and give the tag, with consent
+   recorded. It works for every pair, replaces the placeholder profile QR, and stops `publicLink`
+   (document number + permanent claim key) being the hand-over QR on staff screens.
+3. **Add the NFC tap second, as another way to join the same session**, wherever an Android app is
+   in the pair:
+   - staff Android emits, which covers every traveller, even with no app installed;
+   - a traveller on Android emits for staff on iPhones.
 
-   One Kotlin emitter module and in-app NDEF reads on iOS cover all three.
+   One Kotlin emitter module and in-app NDEF reads on iOS cover all of it. Ship it with universal
+   links / App Links, so the tap opens super-app when it is installed and ssr when it is not.
 4. **Do not build an iPhone↔iPhone gesture** (UWB + Multipeer). Both apps would have to be open
    anyway, which is when a QR scan is just as quick. Revisit if Apple's Tap to Share reaches our
    regions without needing Tap to Pay.
