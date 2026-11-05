@@ -346,8 +346,8 @@ Android needs), an Android phone tapping the CPad, and whether the controller cr
 - iOS turns background reading off while a Core NFC session is open (Apple's doc), so with the app's
   scan sheet up these must be in-app reads. Whether the reader app showed the URL is the user's
   side of the check and is not yet recorded here.
-- **No further controller resets**: 6 full reads since the one at 09:01:21 (three more in round
-  one, two here, plus one at 09:01:51), all on the same HAL and NFC processes.
+- **No further controller resets**: 5 full reads since the one at 09:01:21 (09:01:39, :40 and :51
+  in round one, two here), all on the same HAL and NFC processes.
 
 ### Tap protocol
 
