@@ -353,8 +353,9 @@ first step of building A3.
 
 **Main question answered: yes.** An iPhone with no app open reads CPadNFC posing as an NFC tag,
 and offers to open the URL. Android ↔ Android works too (third round). Still open: the iPhone in-app read (what staff iPhone ↔
-traveller Android needs). CPadNFC's NFC controller has since been **crash-looping** (39 firmware asserts
-by 14:29, see below), so OrderPAD HCE is not safe to build on until that is understood.
+traveller Android needs). CPadNFC's NFC controller then **crash-looped** (40 firmware asserts from
+09:01 to 14:34, see below) before stopping on its own, so OrderPAD HCE is not safe to build on until
+that is understood.
 
 - **Code:** `C:\unirefund\spikes\nfc-hce-ndef\`, a throwaway app `com.clomerce.nfcspike` outside every
   repo. It is built with the plain SDK tools; see its README.
@@ -423,13 +424,16 @@ by 14:29, see below), so OrderPAD HCE is not safe to build on until that is unde
   So an installed app's tag emulation does not need its UI running.
 - The spike app was uninstalled again afterwards, and the AID routing is gone.
 
-### CPadNFC's NFC controller is crash-looping (found 14:31)
+### CPadNFC's NFC controller crash-looped from 09:01 to 14:34 (found 14:31)
 
 A later read of the device's crash log (`logcat -b crash`) shows the problem is much bigger than
 two resets.
 
-- **39 controller crashes** between 09:01:21 and 14:29:33 on CPadNFC, every 3–25 minutes. Each
+- **40 controller crashes** between 09:01:21 and 14:34:49 on CPadNFC, every 3–25 minutes. Each
   NXP HAL abort is followed by a `com.android.nfc` restart, and NFC is back within ~1 s.
+- **Then it stopped by itself, with no reboot.** The HAL process has run since 14:34:48 with no
+  restart. At 15:54, `dumpsys nfc` read `mState=on`, `mScreenState=ON_UNLOCKED`, so the controller
+  was polling the whole time. That is 80 minutes clear, against a worst gap of 25 minutes before.
 - **Cause, from the controller:** `CORE_RESET_NTF 60 00 02 A0 00`. In NXP's HAL source
   (AOSP `hardware/nxp/nfc`, `snxxx/halimpl/hal/phNxpNciHal.h`), `0xA0` is
   `CORE_RESET_TRIGGER_TYPE_FW_ASSERT`: the **controller's own firmware asserted**.
@@ -439,7 +443,7 @@ two resets.
 - **It is not triggered by taps or by the spike app.**
   - The 14:29:33 crash came after **7½ minutes of idle polling** with no RF activation. The last NCI
     traffic was the discovery command at 14:21:56.
-  - It keeps happening **five hours after the spike app was uninstalled** (09:38).
+  - It kept happening for **five hours after the spike app was uninstalled** (09:38).
 - **But it started during the spike.** The HAL had been up 32 days (device uptime 38 days), and the
   first assert came at 09:01:21. That was minutes after the spike registered an HCE service for
   `D2760000850101`, and while the user was holding phones to the CPad.
@@ -456,17 +460,21 @@ two resets.
 - HAL: `android.hardware.nfc_pn72xx@1.2-service`, `nfc_nci_nxp_pn72xx.so` BuildId
   `53bb4e12cac811d68a317b6a62852c72`
 - reason: repeated `CORE_RESET_NTF` reason `0xA0` (FW assert) while idle
-- the full stacks are in the crash buffer.
+- the full stacks: `adb shell dumpsys dropbox --print SYSTEM_TOMBSTONE`. The logcat crash buffer
+  was cleared by 15:52, but the dropbox copies survive, two per crash (HAL, then
+  `com.android.nfc`).
 
 **Implications:**
 1. Registering an HCE service for `D2760000850101` on a PN7220 device may collide with the
    controller's T4T NFCEE. The production emitter should consider a **proprietary AID**, with the
    reader selecting that AID. This gives up the no-app iPhone background read, which only selects
    the NDEF AID. Or the emitter should be **validated with Sunmi** first.
-2. A reboot of CPadNFC should show whether the loop is persistent state or a one-off. It is a shared
-   device, so it needs the user's go-ahead.
-3. Until this is cleared, NFC results on CPadNFC (any app) are unreliable. A note for the sibling
-   sessions is in the shared notes folder.
+2. The loop did not need a reboot to clear: it stopped by itself at 14:34, minutes after it was
+   found, so it is not a state that sticks until power-off. What ended it is unknown. CPadNFC was
+   not rebooted.
+3. NFC results on CPadNFC between 09:01 and 14:35 (any app) are unreliable. Since then it has been
+   stable. If it recurs, treat it as this bug, not app code. A note for the sibling sessions is in
+   the shared notes folder.
 
 ### Tap protocol
 
@@ -486,10 +494,11 @@ two resets.
 
 - ~~Does an iPhone's background tag reading pick up an Android HCE-emulated NDEF Type 4 tag?~~
   **Yes, confirmed on device 2026-11-05** (see Spike status).
-- **Why did CPadNFC's PN7220 start crash-looping?** It has hit a firmware assert (`0xA0`) 39 times
-  since 09:01, idle or not, and kept going after the spike was removed. The suspect is the HCE
-  registration for the NDEF AID that NXP's T4T NFCEE also uses, but that is unproven. Next: reboot
-  CPadNFC and watch the crash buffer; ask Sunmi.
+- **Why did CPadNFC's PN7220 crash-loop, and why did it stop?** It hit a firmware assert (`0xA0`)
+  40 times from 09:01 to 14:34, idle or not. It kept going after the spike was removed, then
+  stopped with no reboot. The suspect is the HCE registration for the NDEF AID that NXP's T4T
+  NFCEE also uses, but that is unproven. The only direct test is to reinstall the spike and see
+  whether the loop returns, which costs the pad's NFC for hours. Ask Sunmi first.
 - **Where the OrderPAD and V3 antennas are**, and whether a phone held to a tablet's back is
   comfortable at a counter. V3 is a POS with a marked contactless area; the OrderPAD is unknown.
 - **Android phones with NFC off.** Many users never turn it on; QR stays the fallback.
