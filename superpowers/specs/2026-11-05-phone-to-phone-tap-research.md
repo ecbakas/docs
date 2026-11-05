@@ -72,7 +72,7 @@ the cited pages.
 | **NameDrop** | ✗ No third-party API; the card lands in Contacts | Apple devices only, iOS 17.1+ | support.apple.com/guide/personal-safety/ips97e16d3b1 |
 | **AirDrop** of a file/URL | ✗ for us. Share sheet only; the "hold phones together" start works for app content only between known contacts; strangers need "Everyone for 10 Minutes" + an AirDrop code (iOS 26.2) | Apple↔Apple; Quick Share↔AirDrop interop only on flagship Androids (Pixel 8a+, Galaxy S26…), no API | support.apple.com/en-us/119857 · developer.apple.com/forums/thread/738469 · blog.google (2025-11-20, 2026-05-12) |
 | **Core NFC read** (in-app) | ✓ NDEF on tag types 1–5; raw ISO 7816 etc. Foreground with the system sheet | Entitlement formats `NDEF`/`TAG`; we only declare `TAG` | developer.apple.com/documentation/corenfc |
-| **Background tag reading** (no app open) | ✓ iPhone XS+. First URI record; https → notification → app via universal link, else **Safari** | **No custom URL schemes**. Off while camera, Wallet, a Core NFC session or airplane mode is active, or if never unlocked | …/corenfc/adding-support-for-background-tag-reading (verified) |
+| **Background tag reading** (no app open) | ✓ iPhone XS+. First URI record; https → notification → app via universal link, else the **default browser** (Apple says Safari; Chrome seen on device when it is the default) | **No custom URL schemes**. Off while camera, Wallet, a Core NFC session or airplane mode is active, or if never unlocked | …/corenfc/adding-support-for-background-tag-reading (verified) |
 | **iPhone as a tag — EEA HCE (`CardSession`)** | ✗ for us. Has a "Device-to-Device transactions" use case, free of charge, but: developer must be **established in the EEA**, users must be **based in the EEA** (`CardSession.isEligible`) | Turkey and the Faroe Islands are outside the EEA; tax-free travellers are non-EU residents by definition | developer.apple.com/support/hce-transactions-in-apps (verified) |
 | **iPhone as a tag — NFC & SE Platform** | ✗ 49 territories (not Turkey, not EU); no device-to-device or "other" use case; commercial terms, fees, Apple approval, lab review | — | developer.apple.com/support/nfc-se-platform |
 | **Apple Wallet NFC pass (VAS)** | ✗ Needs an Apple-issued NFC pass entitlement + certificate, and a VAS-certified reader; protocol not public. Google Smart Tap likewise | Our traveller pass would need that entitlement first | developer.apple.com/documentation/walletpasses/pass/nfc-data.dictionary |
@@ -166,7 +166,7 @@ tap where an Android app is present)**.
    `https://<ssr>/t/<claimToken>` (token: random, ≥128 bits, 2–5 min TTL, single use).
 3. Traveller's phone touches the tablet:
    - **iPhone, any app or lock screen unlocked**: background tag reading shows a banner for the URL →
-     tap → super-app (once universal links exist) or ssr in Safari.
+     tap → super-app (once universal links exist) or ssr in the default browser.
    - **Android phone, NFC on, unlocked**: the OS dispatches the URL to super-app (verified App Link)
      or the browser.
    - **Traveller already in super-app** ("Receive a tag" button): an in-app NDEF read session, no banner.
@@ -260,7 +260,7 @@ accept.
 | HCE NDEF Type 4 tag emulator (`HostApduService`, AID `D2760000850101`, CC + NDEF files) — one module serves staff (B2/A2) and traveller (A3) | new Expo module in super-app; same Kotlin in pos-app's `modules/` | ~250 lines Kotlin + config plugin (`apduservice.xml`, service in manifest) | yes |
 | "Tap phone" UI on tag result and in `SearchTraveller` | super-app, pos-app | small | no |
 | In-app NDEF read (traveller for B2/A2; **staff iPhone** for A3) | super-app (`react-native-nfc-manager` NDEF; add `"NDEF"` to `readersession.formats`) | small | yes (iOS entitlement) |
-| Universal links / App Links so the tap opens super-app, not Safari | `associatedDomains` + Android `autoVerify` intent filters; AASA + `assetlinks.json` served by ssr. **ssr middleware currently 307s `/.well-known/apple-app-site-association` to `/tr/…`** (ssr-dev/ssr-uat). Apple requires it served without a redirect, so the middleware must exempt `/.well-known/` | small–medium | yes |
+| Universal links / App Links so the tap opens super-app, not the browser | `associatedDomains` + Android `autoVerify` intent filters; AASA + `assetlinks.json` served by ssr. **ssr middleware currently 307s `/.well-known/apple-app-site-association` to `/tr/…`** (ssr-dev/ssr-uat). Apple requires it served without a redirect, so the middleware must exempt `/.well-known/` | small–medium | yes |
 | ssr landing routes `/t/<token>`, `/h/<token>` | web-app ssr | small–medium | — |
 | **Backend: claim token** (mint for a tag — staff; redeem → self-assign — traveller) | TagService | medium | — |
 | **Backend: identity token** (mint — traveller; redeem — staff + search grant; consent/audit record) | TravellerService | medium | — |
@@ -290,7 +290,9 @@ the user's iPhone.
 
 ## Spike status (2026-11-05)
 
-Built and installed. Waiting for the physical taps.
+**Main question answered: yes.** An iPhone with no app open reads CPadNFC posing as an NFC tag,
+and offers to open the URL. Still open: the iPhone in-app read (what staff iPhone ↔ traveller
+Android needs), an Android phone tapping the CPad, and whether the controller crash below comes back.
 
 - **Code:** `C:\unirefund\spikes\nfc-hce-ndef\`, a throwaway app `com.clomerce.nfcspike` outside every
   repo. It is built with the plain SDK tools; see its README.
@@ -322,13 +324,14 @@ Built and installed. Waiting for the physical taps.
 | 09:01:30, :31, :33 | SELECT app **without Le** (`00A4040007D2760000850101`) → select CC → read CC → link lost | not served (×3) |
 | 09:01:39, :40 | SELECT app **with Le** → CC → select NDEF `E104` → read NLEN twice → read 41 bytes | **URL served** (×2) |
 
-- The user saw a **Chrome "NFC tag" prompt** for the URL. So the emitter works end to end for at
-  least one phone, and the URL reaches the browser.
-- **Open: which phone made which pattern.** Two different APDU shapes suggest two different readers.
-  The served pattern (NLEN read twice) matches Android's NFC stack (detect, then read). If the
-  CC-then-drop pattern was the iPhone, then iOS rejected or abandoned the tag after the capability
-  container, and the CC values are the first thing to vary. A second round with **only the iPhone**
-  settles it.
+- **Confirmed on the iPhone (user, 2026-11-05): background tag reading works against an Android
+  HCE tag.** With no app open, the iPhone read the full NDEF file from CPadNFC and showed an
+  "NFC tag" prompt that opens the URL. So the served pattern above is the iPhone's.
+- **The prompt opened Chrome, not Safari.** With no app claiming the link, iOS uses the user's
+  **default browser**, so the ssr landing page must work in Chrome on iOS too.
+- The three early drops happened after the capability container, each ending in link loss (the
+  field went away). That fits the phone being moved while the user looked for the antenna, not a
+  rejected tag: the same CC was accepted seconds later. Which phone made them is not confirmed.
 - **NFC controller crash on CPadNFC at 09:01:21**, 12 s after the CPad was unlocked and before the
   first logged exchange. The PN7220 sent `CORE_RESET_NTF` (`60 00 02 A0 00`); the NXP HAL ran
   `phNxpNciHal_emergency_recovery` and `abort()`ed (tombstone). `com.android.nfc` then restarted,
@@ -341,7 +344,7 @@ Built and installed. Waiting for the physical taps.
 1. Wake CPadNFC. It can stay locked; the spike screen shows the tap log.
 2. **iPhone, no app (background read):** unlock the iPhone and stay on the Home screen (not the
    camera, Wallet or Control Center). Hold the top of the iPhone's back against the CPad's back and
-   move it slowly until something happens. Expected: a "NFC Tag — open in Safari" banner for
+   move it slowly until something happens. Expected: an "NFC Tag" banner offering the default browser for
    `ssr-dev.unirefund.com`.
 3. **iPhone, in-app read:** any Core NFC reader app (for example NFC Tools) → Read → hold to the
    CPad. Expected: one URI record with the same URL. This stands in for super-app's own
@@ -352,11 +355,11 @@ Built and installed. Waiting for the physical taps.
 
 ## Unknowns
 
-- **Does an iPhone's background tag reading pick up an Android HCE-emulated NDEF Type 4 tag?**
-  Technically it should (HCE speaks ISO-DEP over NFC-A, which is what a Type 4 tag is), and Apple's
-  own Tap to Share puts a phone-presented tag in front of other phones. But no Apple or Google page
-  confirms it, and developer reports are mixed. **This is what the spike must answer.** The in-app
-  read (`NFCNDEFReaderSession`) is the fallback and is better attested.
+- ~~Does an iPhone's background tag reading pick up an Android HCE-emulated NDEF Type 4 tag?~~
+  **Yes, confirmed on device 2026-11-05** (see Spike status).
+- **Does the PN7220 controller crash recur?** It reset once, on what was probably the first tap
+  after the spike was installed. If it recurs, OrderPADs are unreliable emitters until Sunmi/NXP
+  firmware is checked.
 - **Where the OrderPAD and V3 antennas are**, and whether a phone held to a tablet's back is
   comfortable at a counter. V3 is a POS with a marked contactless area; the OrderPAD is unknown.
 - **Android phones with NFC off.** Many users never turn it on; QR stays the fallback.
@@ -390,6 +393,7 @@ Built and installed. Waiting for the physical taps.
    anyway, which is when a QR scan is just as quick. Revisit if Apple's Tap to Share reaches our
    regions without needing Tap to Pay.
 5. **Never emit today's `publicLink` over NFC.**
-6. **Gate the NFC part on the spike.** If background reading of Android HCE is unreliable, ship the
-   tap as in-app reads only ("Receive a tag" / "Tap phone" buttons). If in-app reads are also
-   unreliable, stop at QR. The backend work is the same either way.
+6. **Spike gate, part one passed:** the iPhone background read works, so the staff-Android flows
+   (B2, A2) can reach a traveller with no app open. Part two is still to run: the iPhone in-app
+   read, which A3 (staff iPhone ↔ traveller Android) depends on. If it fails, A3 falls back to QR.
+   The backend work is the same either way.
