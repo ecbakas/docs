@@ -339,6 +339,16 @@ Android needs), an Android phone tapping the CPad, and whether the controller cr
   up 32 days, so the first tap probably triggered it, but it did not recur on the next five
   exchanges. Watch for it: a controller reset also kills any card read in progress in super-app.
 
+### Second round (09:08–09:09, iPhone with an NFC reader app open)
+
+- CPadNFC served the **full NDEF file twice** (09:08:59, 09:09:01). The APDU sequence was identical
+  to the background reads: SELECT with Le, CC, select `E104`, NLEN twice, 41-byte message.
+- iOS turns background reading off while a Core NFC session is open (Apple's doc), so with the app's
+  scan sheet up these must be in-app reads. Whether the reader app showed the URL is the user's
+  side of the check and is not yet recorded here.
+- **No further controller resets**: 6 full reads since the one at 09:01:21 (three more in round
+  one, two here, plus one at 09:01:51), all on the same HAL and NFC processes.
+
 ### Tap protocol
 
 1. Wake CPadNFC. It can stay locked; the spike screen shows the tap log.
