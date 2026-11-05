@@ -315,6 +315,27 @@ Built and installed. Waiting for the physical taps.
 - **Side finding:** `dumpsys nfc` on the OrderPAD hangs (dump timeout) while the device dozes, and
   answers normally once the screen is on.
 
+### First round of taps (09:01, from `logcat -s NfcSpike` on CPadNFC)
+
+| Time | What the reader did | Result |
+| --- | --- | --- |
+| 09:01:30, :31, :33 | SELECT app **without Le** (`00A4040007D2760000850101`) → select CC → read CC → link lost | not served (×3) |
+| 09:01:39, :40 | SELECT app **with Le** → CC → select NDEF `E104` → read NLEN twice → read 41 bytes | **URL served** (×2) |
+
+- The user saw a **Chrome "NFC tag" prompt** for the URL. So the emitter works end to end for at
+  least one phone, and the URL reaches the browser.
+- **Open: which phone made which pattern.** Two different APDU shapes suggest two different readers.
+  The served pattern (NLEN read twice) matches Android's NFC stack (detect, then read). If the
+  CC-then-drop pattern was the iPhone, then iOS rejected or abandoned the tag after the capability
+  container, and the CC values are the first thing to vary. A second round with **only the iPhone**
+  settles it.
+- **NFC controller crash on CPadNFC at 09:01:21**, 12 s after the CPad was unlocked and before the
+  first logged exchange. The PN7220 sent `CORE_RESET_NTF` (`60 00 02 A0 00`); the NXP HAL ran
+  `phNxpNciHal_emergency_recovery` and `abort()`ed (tombstone). `com.android.nfc` then restarted,
+  and NFC was back within a second with the spike still the default for the AID. The HAL had been
+  up 32 days, so the first tap probably triggered it, but it did not recur on the next five
+  exchanges. Watch for it: a controller reset also kills any card read in progress in super-app.
+
 ### Tap protocol
 
 1. Wake CPadNFC. It can stay locked; the spike screen shows the tap log.
