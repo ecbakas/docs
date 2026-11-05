@@ -339,13 +339,17 @@ Android needs), an Android phone tapping the CPad, and whether the controller cr
   up 32 days, so the first tap probably triggered it, but it did not recur on the next five
   exchanges. Watch for it: a controller reset also kills any card read in progress in super-app.
 
-### Second round (09:08–09:09, iPhone with an NFC reader app open)
+### Second round (09:08–09:09): more background reads
 
-- CPadNFC served the **full NDEF file twice** (09:08:59, 09:09:01). The APDU sequence was identical
-  to the background reads: SELECT with Le, CC, select `E104`, NLEN twice, 41-byte message.
-- iOS turns background reading off while a Core NFC session is open (Apple's doc), so with the app's
-  scan sheet up these must be in-app reads. Whether the reader app showed the URL is the user's
-  side of the check and is not yet recorded here.
+- CPadNFC served the **full NDEF file twice** (09:08:59, 09:09:01), with the same APDU sequence as
+  round one.
+- **These were background reads too.** No NFC app was installed on the iPhone (user, 2026-11-05).
+  An earlier note here guessed they were in-app reads; that was wrong. So the **in-app read is
+  still untested**. Testing it needs some app on the iPhone that opens a Core NFC session: a
+  third-party NFC reader, or a super-app build with an NFC read screen.
+- **The risk looks low.** The background reads already exercised the same radio link and the same
+  Type 4 NDEF read procedure, and an in-app NDEF read is the most standard Core NFC use there is.
+  It is reasonable to verify it as the first step of building A3 rather than block on it now.
 - **No further controller resets**: 5 full reads since the one at 09:01:21 (09:01:39, :40 and :51
   in round one, two here), all on the same HAL and NFC processes.
 
