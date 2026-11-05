@@ -133,8 +133,11 @@ The flag is read in two places:
 
 `google-services.json` stays gitignored. Its path comes from
 `GOOGLE_SERVICES_FILE`, defaulting to `./google-services.json`. If the flag is on
-and the file is missing, prebuild fails with a message naming the variable. It
-does not fail silently.
+and the file is missing, prebuild fails when Expo copies it ("Cannot copy
+google-services.json from …"). It does not fail silently. *(Corrected during
+implementation: evaluating `app.config.js` must not throw, because
+`expo start` reads it too and Metro has to serve flag-on JS to a flag-off build
+before any Firebase file exists.)*
 
 ### Device identity
 
@@ -165,9 +168,21 @@ Registration is best effort. A failure is logged and retried on the next
 trigger, never shown to the user. A 404 or 501 means the backend has no endpoint
 yet. In that case the app stops trying until the next launch.
 
-**Sign-out** calls `DELETE …/push-devices/{installationId}` *before*
-`SessionProvider.signOut` clears the token, capped at 3 s so a slow network
-cannot hold up sign-out.
+**Sign-out** calls `DELETE …/push-devices/{installationId}` without a token and
+without waiting for it, so the stored tokens are cleared at once. *(Corrected
+after the final review: waiting for an authenticated DELETE before
+`clearTokens` kept the tokens on the device for up to 3 s after the screen
+showed signed out. A kill in that window reopened the account on the next
+launch, and a fast sign-in by the next person had its tokens wiped by the late
+clear.)* Registrations and unregisters run through one queue, so the next
+account's PUT cannot overtake it.
+
+**Any sync without consent** (the next account before it answers, or one that
+said no) also sends `DELETE` when this install still records a registration,
+and retries on every later sync until it succeeds. So a sign-out `DELETE` that
+failed offline is cleaned up by the next session on this install, not left for
+the 30-day expiry. The app records the registration *before* its `PUT`, so a
+`PUT` whose response was lost is still unregistered later.
 
 **Session expiry** also calls `DELETE`, unauthenticated, as soon as the
 `onSessionExpired` broadcast fires. The backend accepts it because the install
