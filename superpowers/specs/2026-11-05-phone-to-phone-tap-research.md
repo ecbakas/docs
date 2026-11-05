@@ -260,7 +260,7 @@ accept.
 | HCE NDEF Type 4 tag emulator (`HostApduService`, AID `D2760000850101`, CC + NDEF files) — one module serves staff (B2/A2) and traveller (A3) | new Expo module in super-app; same Kotlin in pos-app's `modules/` | ~250 lines Kotlin + config plugin (`apduservice.xml`, service in manifest) | yes |
 | "Tap phone" UI on tag result and in `SearchTraveller` | super-app, pos-app | small | no |
 | In-app NDEF read (traveller for B2/A2; **staff iPhone** for A3) | super-app (`react-native-nfc-manager` NDEF; add `"NDEF"` to `readersession.formats`) | small | yes (iOS entitlement) |
-| Universal links / App Links so the tap opens super-app, not Safari | `associatedDomains` + Android `autoVerify` intent filters; AASA + `assetlinks.json` served by ssr | small–medium | yes |
+| Universal links / App Links so the tap opens super-app, not Safari | `associatedDomains` + Android `autoVerify` intent filters; AASA + `assetlinks.json` served by ssr. **ssr middleware currently 307s `/.well-known/apple-app-site-association` to `/tr/…`** (ssr-dev/ssr-uat). Apple requires it served without a redirect, so the middleware must exempt `/.well-known/` | small–medium | yes |
 | ssr landing routes `/t/<token>`, `/h/<token>` | web-app ssr | small–medium | — |
 | **Backend: claim token** (mint for a tag — staff; redeem → self-assign — traveller) | TagService | medium | — |
 | **Backend: identity token** (mint — traveller; redeem — staff + search grant; consent/audit record) | TravellerService | medium | — |
@@ -287,6 +287,47 @@ would add a native Swift module and is not recommended.
 
 Not testable here: anything iPhone-side beyond background reading needs the TestFlight workflow and
 the user's iPhone.
+
+## Spike status (2026-11-05)
+
+Built and installed. Waiting for the physical taps.
+
+- **Code:** `C:\unirefund\spikes\nfc-hce-ndef\`, a throwaway app `com.clomerce.nfcspike` outside every
+  repo. It is built with the plain SDK tools; see its README.
+  - `Type4Tag.java` is the read-only NFC Forum Type 4 tag: NDEF app AID `D2760000850101`, CC file
+    `E103`, NDEF file `E104`, and one URI record.
+  - `NdefHceService` hosts it as a `HostApduService` with `category="other"`.
+- **Verified:**
+  - A JVM test replays the reader's procedure (select app, select and read CC, select NDEF, read
+    NLEN, read the message in chunks of 246, 59, 16 and 1 bytes) and decodes the URL back (17 checks
+    pass).
+  - On CPadNFC, `dumpsys nfc` lists the service as the **default** handler for `D2760000850101`,
+    routed to host, with "Requires Device ScreenOn: true" and "Requires Device Unlock: false".
+  - The screen launches without a crash.
+- **Not verified, because it needs a second NFC device in hand:**
+  - any over-the-air exchange;
+  - the iPhone background read;
+  - the iPhone in-app read;
+  - an Android phone's NDEF dispatch.
+- **It emits** `https://ssr-dev.unirefund.com/?src=nfc-spike` whenever CPadNFC's screen is on. Each
+  tap leaves a summary line on the spike's screen ("URL SERVED" or "not served", with the APDU
+  count), and the raw APDUs go to `logcat -s NfcSpike`.
+- **Side finding:** `dumpsys nfc` on the OrderPAD hangs (dump timeout) while the device dozes, and
+  answers normally once the screen is on.
+
+### Tap protocol
+
+1. Wake CPadNFC. It can stay locked; the spike screen shows the tap log.
+2. **iPhone, no app (background read):** unlock the iPhone and stay on the Home screen (not the
+   camera, Wallet or Control Center). Hold the top of the iPhone's back against the CPad's back and
+   move it slowly until something happens. Expected: a "NFC Tag — open in Safari" banner for
+   `ssr-dev.unirefund.com`.
+3. **iPhone, in-app read:** any Core NFC reader app (for example NFC Tools) → Read → hold to the
+   CPad. Expected: one URI record with the same URL. This stands in for super-app's own
+   `NFCNDEFReaderSession`, so no TestFlight build is needed for the spike.
+4. **Android phone (if available):** NFC on, unlocked, tap. Expected: the browser opens the URL.
+5. Check the spike screen after each tap. "URL SERVED" with no banner means iOS read the tag and
+   chose not to surface it; "not served" or no line at all means the exchange never completed.
 
 ## Unknowns
 
