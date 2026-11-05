@@ -158,7 +158,7 @@ moves **both ways through the session**, so the radio never has to carry data ba
 | Staff · Traveller | How the session is joined | Tested on device? |
 | --- | --- | --- |
 | Android · iPhone | staff device emits, the iPhone reads | **Yes** (background read, 2026-11-05) |
-| Android · Android | staff device emits, the phone reads | No |
+| Android · Android | staff device emits, the phone reads | **Yes** (V3 reading CPadNFC, 2026-11-05) |
 | Android · web | staff device emits, the phone opens ssr | iPhone half yes (it opened the browser) |
 | iPhone · Android | traveller's phone emits, staff iPhone reads in-app | No (in-app read untested) |
 | iPhone · iPhone, iPhone · web | QR, either side shows it | — (camera scan, no NFC) |
@@ -330,14 +330,15 @@ the user's iPhone.
 
 ## Spike status (2026-11-05)
 
-**Closed.** The spike app was uninstalled from CPadNFC at the user's request, and `dumpsys nfc` no
-longer routes `D2760000850101`; NFC itself stays on. The source stays in
+**Closed.** The spike app was uninstalled from CPadNFC after the last round (Android ↔ Android,
+09:36), and `dumpsys nfc` no longer routes `D2760000850101`; NFC itself stays on. The source stays in
 `C:\unirefund\spikes\nfc-hce-ndef\` for the real emitter module. The in-app read is deferred to the
 first step of building A3.
 
 **Main question answered: yes.** An iPhone with no app open reads CPadNFC posing as an NFC tag,
-and offers to open the URL. Still open: the iPhone in-app read (what staff iPhone ↔ traveller
-Android needs), an Android phone tapping the CPad, and whether the controller crash below comes back.
+and offers to open the URL. Android ↔ Android works too (third round). Still open: the iPhone in-app read (what staff iPhone ↔
+traveller Android needs). The controller crash **did** come back once, so the OrderPAD's PN7220 is a
+reliability risk.
 
 - **Code:** `C:\unirefund\spikes\nfc-hce-ndef\`, a throwaway app `com.clomerce.nfcspike` outside every
   repo. It is built with the plain SDK tools; see its README.
@@ -395,6 +396,33 @@ Android needs), an Android phone tapping the CPad, and whether the controller cr
 - **No further controller resets**: 5 full reads since the one at 09:01:21 (09:01:39, :40 and :51
   in round one, two here), all on the same HAL and NFC processes.
 
+### Third round (09:36): Android ↔ Android
+
+- The spike app was reinstalled on CPadNFC. **The V3**, a stand-in for a traveller's Android phone
+  with NFC on and nothing installed, was tapped against it.
+- CPadNFC served the **full NDEF file twice** (09:36:06, 09:36:07). **The V3 opened the URL in
+  Chrome** (user, 2026-11-05).
+- Android's read is one APDU shorter than the iPhone's: it reads NLEN once, where iOS reads it twice.
+- The HCE service answered even though the spike's screen had not been opened since the reinstall.
+  So an installed app's tag emulation does not need its UI running.
+- The spike app was uninstalled again afterwards, and the AID routing is gone.
+
+### Second controller reset (09:10:45)
+
+The device's crash log shows a **second PN7220 reset**, with the same
+`phNxpNciHal_emergency_recovery` → `abort()` path. It happened about 1¾ minutes after the last
+round-two read, with the spike still installed. The main and system logs had already rolled past it,
+so its trigger is unknown.
+
+The HAL had run 32 days without one before the spike, and then crashed twice in about ten minutes of
+tapping. That makes HCE on the OrderPAD's PN7220 a real **reliability risk** until it is understood.
+Before building on OrderPADs:
+- reproduce with a longer tap session;
+- collect the tombstones;
+- raise it with Sunmi.
+
+The V3 (a different board) has not been tried as the emitter.
+
 ### Tap protocol
 
 1. Wake CPadNFC. It can stay locked; the spike screen shows the tap log.
@@ -413,9 +441,9 @@ Android needs), an Android phone tapping the CPad, and whether the controller cr
 
 - ~~Does an iPhone's background tag reading pick up an Android HCE-emulated NDEF Type 4 tag?~~
   **Yes, confirmed on device 2026-11-05** (see Spike status).
-- **Does the PN7220 controller crash recur?** It reset once, on what was probably the first tap
-  after the spike was installed. If it recurs, OrderPADs are unreliable emitters until Sunmi/NXP
-  firmware is checked.
+- **Why does the OrderPAD's PN7220 reset?** It reset twice (09:01:21, 09:10:45) while the spike
+  was installed, after 32 days without one. Until that is understood, OrderPADs are unreliable
+  emitters. Next steps: reproduce, collect the tombstones, ask Sunmi, and try the V3 as the emitter.
 - **Where the OrderPAD and V3 antennas are**, and whether a phone held to a tablet's back is
   comfortable at a counter. V3 is a POS with a marked contactless area; the OrderPAD is unknown.
 - **Android phones with NFC off.** Many users never turn it on; QR stays the fallback.
@@ -429,8 +457,7 @@ Android needs), an Android phone tapping the CPad, and whether the controller cr
   decides how much NFC work is worth doing.
 - **Backend appetite** for the handoff session and a consent record (TravellerService, TagService).
   Nothing here exists today.
-- **Android ↔ Android tap** is untested on our hardware (no second Android device touched the
-  CPad). It is Android's own documented HCE setup, so the risk is low.
+- ~~Android ↔ Android tap~~ **works** (V3 read CPadNFC and opened Chrome, 2026-11-05).
 
 ## Recommendation
 
