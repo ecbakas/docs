@@ -290,6 +290,11 @@ the user's iPhone.
 
 ## Spike status (2026-11-05)
 
+**Closed.** The spike app was uninstalled from CPadNFC at the user's request, and `dumpsys nfc` no
+longer routes `D2760000850101`; NFC itself stays on. The source stays in
+`C:\unirefund\spikes\nfc-hce-ndef\` for the real emitter module. The in-app read is deferred to the
+first step of building A3.
+
 **Main question answered: yes.** An iPhone with no app open reads CPadNFC posing as an NFC tag,
 and offers to open the URL. Still open: the iPhone in-app read (what staff iPhone ↔ traveller
 Android needs), an Android phone tapping the CPad, and whether the controller crash below comes back.
