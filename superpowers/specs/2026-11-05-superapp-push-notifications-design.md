@@ -117,9 +117,12 @@ default. The `expo-notifications` module itself is always linked (decision 5).
 The flag is read in two places:
 
 - **`app.config.js` at prebuild,** only for the two settings that would break a
-  build without credentials: the plugin's `enableRemoteNotifications` (the iOS
-  `aps-environment` entitlement, which today's App Store profile cannot sign)
-  and `android.googleServicesFile`. Every other plugin option, such as the icon,
+  build without credentials: the iOS `aps-environment` entitlement, which
+  today's App Store profile cannot sign, and `android.googleServicesFile`.
+  *(Corrected during implementation: the expo-notifications 0.32 plugin has no
+  `enableRemoteNotifications` option and writes `aps-environment`
+  unconditionally, so a small `withPushEntitlementGate.js`, registered before
+  it so it runs after it, deletes the key with the flag off.)* Every other plugin option, such as the icon,
   colour and default channel, is always set.
 - **JS at runtime,** through one helper `isPushEnabled()`. It gates the sheet,
   the Profile switch, registration and tap routing. Because the module is
@@ -256,8 +259,10 @@ nothing extra.
 
 - `expo-notifications` (SDK 54 line). Plugin options: `icon` (a 96×96 white
   mark made from `android-icon-monochrome.png`), `color: "#DB0000"`,
-  `defaultChannel: "default"`, `enableRemoteNotifications` set to the flag,
-  `enableBackgroundRemoteNotifications: false`.
+  `defaultChannel: "default"`, `enableBackgroundRemoteNotifications: false`,
+  and `mode` `"production"` when `EXPO_IOS_PROVISIONING_PROFILE` is set (CI's
+  App Store signing) or `"development"` otherwise. The entitlement itself is
+  gated by `withPushEntitlementGate.js` (see above).
 - `expo-application`, for `getIosPushNotificationServiceEnvironmentAsync()`. A
   development-signed build gets sandbox APNs tokens, and a TestFlight or App
   Store build gets production ones. Each needs the matching gateway, so the app

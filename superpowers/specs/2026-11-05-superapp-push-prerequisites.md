@@ -168,7 +168,16 @@ email, in-app and SMS.
    `aps-environment`. Then update the TestFlight secrets
    `IOS_PROVISIONING_PROFILE_BASE64`, and `IOS_PROVISIONING_PROFILE_NAME` if the
    name changes. Do this **before** a TestFlight run with the flag on, or the
-   archive fails on the missing entitlement.
+   archive fails on the missing entitlement. The app side needs nothing more:
+   with the flag on, prebuild writes `aps-environment` as `production` when CI
+   signs (`EXPO_IOS_PROVISIONING_PROFILE` set) and `development` for a local
+   device build; with it off, `withPushEntitlementGate.js` removes the key.
+4. **Expect, but do not act on, an App Store Connect warning** while the flag
+   is off. The binary links expo-notifications, so Apple may email
+   ITMS-90078 ("Missing Push Notification Entitlement") for a build without
+   `aps-environment`. It is a warning, not a rejection, and it stops once
+   step 3 is done and a flag-on build ships. *(Expected from how Apple's check
+   works; not yet observed on a real upload.)*
 
 ## E. Store privacy declarations
 
