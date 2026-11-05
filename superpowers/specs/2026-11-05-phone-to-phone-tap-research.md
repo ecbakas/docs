@@ -353,8 +353,8 @@ first step of building A3.
 
 **Main question answered: yes.** An iPhone with no app open reads CPadNFC posing as an NFC tag,
 and offers to open the URL. Android ↔ Android works too (third round). Still open: the iPhone in-app read (what staff iPhone ↔
-traveller Android needs). The controller crash **did** come back once, so the OrderPAD's PN7220 is a
-reliability risk.
+traveller Android needs). CPadNFC's NFC controller has since been **crash-looping** (39 firmware asserts
+by 14:29, see below), so OrderPAD HCE is not safe to build on until that is understood.
 
 - **Code:** `C:\unirefund\spikes\nfc-hce-ndef\`, a throwaway app `com.clomerce.nfcspike` outside every
   repo. It is built with the plain SDK tools; see its README.
