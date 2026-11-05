@@ -79,7 +79,7 @@ the cited pages.
 | **AirDrop** of a file/URL | ✗ for us. Share sheet only; the "hold phones together" start works for app content only between known contacts; strangers need "Everyone for 10 Minutes" + an AirDrop code (iOS 26.2) | Apple↔Apple; Quick Share↔AirDrop interop only on flagship Androids (Pixel 8a+, Galaxy S26…), no API | support.apple.com/en-us/119857 · developer.apple.com/forums/thread/738469 · blog.google (2025-11-20, 2026-05-12) |
 | **Core NFC read** (in-app) | ✓ NDEF on tag types 1–5; raw ISO 7816 etc. Foreground with the system sheet | Entitlement formats `NDEF`/`TAG`; we only declare `TAG` | developer.apple.com/documentation/corenfc |
 | **Background tag reading** (no app open) | ✓ iPhone XS+. First URI record; https → notification → app via universal link, else the **default browser** (Apple says Safari; Chrome seen on device when it is the default) | **No custom URL schemes**. Off while camera, Wallet, a Core NFC session or airplane mode is active, or if never unlocked | …/corenfc/adding-support-for-background-tag-reading (verified) |
-| **iPhone as a tag — EEA HCE (`CardSession`)** | ✗ for us. Has a "Device-to-Device transactions" use case, free of charge, but: developer must be **established in the EEA**, users must be **based in the EEA** (`CardSession.isEligible`) | Turkey and the Faroe Islands are outside the EEA; tax-free travellers are non-EU residents by definition | developer.apple.com/support/hce-transactions-in-apps (verified) |
+| **iPhone as a tag — EEA HCE (`CardSession`)** | ✗ for us. Has a "Device-to-Device transactions" use case, free of charge, but: developer must be **established in the EEA**, users must be **based in the EEA** (`CardSession.isEligible`) | A traveller never qualifies (non-EU resident by definition). A **staff** iPhone in an EEA shop could, if the Apple developer organisation is EEA-established and Apple approves the device-to-device use case. Turkey and the Faroe Islands are outside the EEA, so not for current markets | developer.apple.com/support/hce-transactions-in-apps (verified) |
 | **iPhone as a tag — NFC & SE Platform** | ✗ 49 territories (not Turkey, not EU); no device-to-device or "other" use case; commercial terms, fees, Apple approval, lab review | — | developer.apple.com/support/nfc-se-platform |
 | **Apple Wallet NFC pass (VAS)** | ✗ Needs an Apple-issued NFC pass entitlement + certificate, and a VAS-certified reader; protocol not public. Google Smart Tap likewise | Our traveller pass would need that entitlement first | developer.apple.com/documentation/walletpasses/pass/nfc-data.dictionary |
 | **Apple "Tap to Share"** (iOS 27, `CustomerEngagementSession`) | ✗ Closest thing to the asked-for gesture, but: merchant must be an **iPhone in an active Tap to Pay session**, collects contact fields not passport data, and is "not currently available in the European Economic Area"; Tap to Pay is not offered in Turkey | iOS 27, iPhone 12+ | developer.apple.com/tap-to-pay/tap-to-share (verified) |
@@ -257,9 +257,25 @@ scans it with super-app's `QrScanner` or the phone camera.
 
 ### Staff iPhone ↔ traveller iPhone (or web)
 
-There is no tap here; one side shows the QR. An iPhone-only proximity gesture (A8, UWB + Multipeer)
-is buildable, but it needs both apps open on the same screen plus two permission prompts on first
-use. At a counter that is no quicker than a QR scan, and it costs a native Swift module on each side.
+There is no **NFC** tap here; one side shows the QR. An NFC tap needs one device to act as the tag,
+and iOS lets third-party apps act as a tag only through Apple's card-emulation programmes:
+- the **EEA programme** needs an EEA-established developer and an EEA-based user;
+- the **NFC & SE Platform** has no device-to-device use case and excludes Turkey.
+
+NameDrop and AirDrop do this between iPhones, but they are system features with no app API.
+
+**Narrow exception, not for current markets:** a *staff* iPhone in an EEA shop could emit through
+the EEA programme. That needs:
+- the Apple developer organisation to be EEA-established (the marketing site names
+  "Unirefund Ireland"; who holds the Apple account is unverified);
+- Apple to approve the device-to-device use case.
+
+The traveller's iPhone would only read, which needs no programme. Turkey and the Faroe Islands
+are outside the EEA, so this does not apply today.
+
+An iPhone-only proximity gesture (A8, UWB + Multipeer) is buildable without NFC. But it needs both
+apps open on the same screen plus two permission prompts on first use. At a counter that is no
+quicker than a QR scan, and it costs a native Swift module on each side.
 
 ## Security and privacy
 
