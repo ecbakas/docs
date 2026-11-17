@@ -215,7 +215,7 @@ Calls marked *(call)* were made by Claude and are open to correction.
 
 1. **UNI-1875 still ships independently** *(call)*.
    - **What the check looks at.** Per the handoff, `0100145` checks the traveller's primary e-mail *record*, the one from my-emails, not the account's confirmed e-mail.
-   - **Who it blocks.** On dev, existing travellers with a VIRTUAL primary are refused today, whatever web-app ships. Today's sticker-line-only upload on `main` hits the same refusal, and UNI-1920's backfill is what clears it.
+   - **Who it blocks: corrected 2026-11-17 by QA on dev.** `tur-a25y29041` has a VIRTUAL primary and no verified record, but its tag-number upload was **accepted**. So `0100145` does not fire for this kind of account; the gate apparently also accepts the account's confirmed sign-in e-mail. Existing travellers are not blocked, and the UNI-1920 ticket's claim that they are is wrong.
    - **In UNI-1875,** the upload dialog shows `0100145`'s message as returned, with no link, because "My e-mails" isn't on `main` yet.
    - **In UNI-1889,** the dialog gains a check up front, from my-emails, and a link to "My e-mails" for this case.
 2. **Novu snippet** *(call)*.
